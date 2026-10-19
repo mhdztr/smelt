@@ -1,0 +1,72 @@
+# FORMATS.md -- smelt format matrix
+
+Read/Write capability, engine, and target milestone for every planned
+format. "Native" = pure Rust inside smelt. "Optional" = external tool via a
+warm pool (see ARCHITECTURE.md); the tool is detected at runtime and never
+required.
+
+| Format | Read | Write | Engine | Milestone | Notes |
+| --- | --- | --- | --- | --- | --- |
+| Markdown (GFM/CommonMark) | yes | yes | native | M0 | comrak; tables, strikethrough, autolinks on; tasklists degrade (see lossy list) |
+| HTML | yes | yes | native | M0 | scraper/html5ever read; hand-rolled serializer write; malformed input auto-repaired (lossy) |
+| Plain text | yes | yes | native | M0 | blank-line paragraph splitting on read; minimal structure on write |
+| CSV / TSV | yes | yes | native | M1 | each file becomes a single IDM table |
+| EPUB | yes | yes | native | M1 | zip + XHTML spine; reuses the HTML converter |
+| DOCX | yes | yes | LibreOffice (optional) | M1 | via warm soffice pool |
+| ODT | yes | yes | LibreOffice (optional) | M1 | via warm soffice pool |
+| PPTX | yes | yes | LibreOffice (optional) | M1 | slide-per-block; layout is lossy |
+| XLSX | yes | yes | LibreOffice (optional) | M1 | sheets become tables; multi-sheet is lossy |
+| PDF | yes | yes | PDFium (static FFI) | M2 | page-parallel via rayon |
+| Searchable PDF | no | yes | PDFium (static) | M2 | renders text layer for OCR'd documents |
+| LaTeX | yes | yes | pandoc (optional) | M3 | |
+| man / troff | yes | yes | groff (optional) | M3 | |
+| MOBI / AZW | yes | yes | calibre (optional) | M3 | |
+| Images / scanned PDF (OCR) | yes | no | Tesseract 5 + Leptonica (static) | M3 | `smelt ocr` |
+| RTF | planned | planned | native (M4) | M3+ | detection already ships in M0 |
+| PDF (plain, via engine) | -- | -- | -- | -- | PDFium only; no external PDF engine |
+
+Support levels: `yes` = implemented at the listed milestone; `planned` =
+design agreed, code later; detection for all listed formats ships in M0 via
+`smelt-detect` even before converters exist (so `smelt info` can identify
+them and `smelt convert` can fail with the precise "no native reader" exit-3
+message).
+
+## Detection rules (M0, implemented)
+
+Magic bytes first; extension is only a tiebreak/disambiguator.
+
+1. `%PDF-` at offset 0 -> PDF (certain).
+2. `PK\x03\x04` at offset 0 -> ZIP family; scan the raw prefix for stored
+   entry names:
+   - `mimetypeapplication/epub+zip` -> EPUB
+   - `word/document.xml` -> DOCX
+   - `ppt/presentation.xml` -> PPTX
+   - `xl/workbook.xml` -> XLSX
+   - `mimetype` + `content.xml`, no OOXML marker -> ODT
+   - nothing matched -> unknown ("zip archive (unrecognized layout)")
+3. `{\rtf` at offset 0 (<= 32 bytes of leading whitespace/BOM skipped) -> RTF.
+4. Case-insensitive scan of the first 1 KiB for `<!doctype html`, `<html`,
+   `<head`, `<body` (after optional BOM/whitespace/XML declaration) -> HTML
+   (certain with doctype, guessed otherwise).
+5. Valid UTF-8 in the read prefix -> text family, by extension:
+   `.md`/`.markdown`/`.mdown` -> Markdown; `.csv` -> CSV; `.tsv` -> TSV;
+   `.txt`/`.text`/none/anything-else -> plain text. All guessed -- markdown
+   has no magic bytes. Valid UTF-8 is never reported as unknown.
+6. Invalid UTF-8 and no magic match -> unknown.
+
+## Known lossy cases (M0)
+
+- **Tasklist checkboxes**: `- [ ]` / `- [x]` become plain list items (IDM v0
+  has no checkbox node; reserved for a future `Task` marker).
+- **Setext headings** (`===` / `---` underline): parsed correctly by comrak,
+  but the smelt writer always emits ATX (`#`) headings.
+- **Malformed HTML**: html5ever repairs it silently; the repaired tree is
+  what reaches the IDM.
+- **HTML-only styling** (`<span style>`, classes, inline styles): dropped;
+  the IDM carries structure, not presentation.
+- **Loose vs tight lists**: both parse, the writer emits tight style.
+- **RTL text**: content is preserved exactly (including combining marks) but
+  M0 performs no shaping or bidi reordering -- rendering is the consumer's
+  job.
+- **Plain text input**: only paragraph structure is inferred; everything
+  else (headings, lists) is intentionally not guessed.
