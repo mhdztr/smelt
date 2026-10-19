@@ -1,0 +1,40 @@
+# Maintainer: mhdztr <zakkithoriq@gmail.com>
+pkgname=smelt
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Advanced document converter CLI - melt any document into any other"
+arch=('x86_64' 'aarch64')
+url="https://github.com/mhdztr/smelt"
+license=('MIT')
+depends=('gcc-libs' 'glibc')
+makedepends=('cargo')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+# Placeholder until the first tagged release; scripts/aur-update.sh replaces
+# this with the real sha256 of the tag tarball before any publish.
+sha256sums=('0000000000000000000000000000000000000000000000000000000000000000')
+
+prepare() {
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')" \
+    --manifest-path "$pkgname-$pkgver/Cargo.toml"
+}
+
+build() {
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --frozen --manifest-path "$pkgname-$pkgver/Cargo.toml" --release
+}
+
+check() {
+  export RUSTUP_TOOLCHAIN=stable
+  cargo test --frozen --manifest-path "$pkgname-$pkgver/Cargo.toml" --release
+}
+
+package() {
+  install -Dm755 "$pkgname-$pkgver/target/release/smelt" \
+    "$pkgdir/usr/bin/smelt"
+  install -Dm644 "$pkgname-$pkgver/LICENSE" \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "$pkgname-$pkgver/README.md" \
+    "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
