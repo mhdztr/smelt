@@ -1,0 +1,13 @@
+[workspace]
+members = ["crates/smelt-detect", "crates/smelt-core", "crates/smelt-cli"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/mhdztr/smelt"
+
+[profile.release]
+lto = "thin"
+strip = true

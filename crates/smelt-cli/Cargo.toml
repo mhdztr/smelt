@@ -1,0 +1,15 @@
+[package]
+name = "smelt-cli"
+description = "Melt any document into any other"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "smelt"
+path = "src/main.rs"
+
+[dependencies]
+smelt-core = { path = "../smelt-core" }
+smelt-detect = { path = "../smelt-detect" }
