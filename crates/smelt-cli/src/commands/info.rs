@@ -15,20 +15,35 @@ use crate::ui::{Theme, human_bytes};
 const LABEL_WIDTH: usize = 10;
 
 pub fn run(args: &InfoArgs, theme: &Theme) -> Result<(), SmeltError> {
-    let from_stdin = match &args.file {
-        Some(path) => path == Path::new("-"),
-        // Default to stdin when piped; a terminal without an argument is
-        // a usage error (there is nothing to inspect).
-        None => !std::io::stdin().is_terminal(),
-    };
-    if from_stdin {
-        run_stdin(args, theme)
-    } else {
-        run_file(
-            args,
-            theme,
-            args.file.as_deref().expect("file set when not stdin"),
-        )
+    match input_source(args.file.as_deref(), std::io::stdin().is_terminal()) {
+        InfoSource::Stdin => run_stdin(args, theme),
+        InfoSource::File(path) => run_file(args, theme, path),
+        // `smelt info` at a shell prompt with nothing to inspect: a usage
+        // error (exit 2), never a panic (AGENTS.md).
+        InfoSource::Missing => Err(SmeltError::usage(
+            "missing input: pass a file or - for stdin",
+        )),
+    }
+}
+
+/// Where `smelt info` should read from.
+enum InfoSource<'a> {
+    Stdin,
+    File(&'a Path),
+    /// No argument and stdin is a terminal: nothing to inspect.
+    Missing,
+}
+
+/// Input-channel resolution (pure core, docs/cli.md): an explicit `-` means
+/// stdin; a terminal defaulting to stdin always has piped input, so `None`
+/// plus a terminal is the only "nothing to do" case. Split out of [`run`] so
+/// the `(None, tty)` case is unit-testable without a PTY.
+fn input_source(file: Option<&Path>, stdin_is_terminal: bool) -> InfoSource<'_> {
+    match file {
+        Some(path) if path == Path::new("-") => InfoSource::Stdin,
+        Some(path) => InfoSource::File(path),
+        None if stdin_is_terminal => InfoSource::Missing,
+        None => InfoSource::Stdin,
     }
 }
 
@@ -151,4 +166,42 @@ fn print_report(
         println!("{}{}", label("bytes"), stats.bytes);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression: `smelt info` with no argument on a terminal (the most
+    /// common invocation at a shell prompt) used to reach an
+    /// `.expect("file set when not stdin")` on `None` and panic. It must be
+    /// a usage error instead.
+    #[test]
+    fn missing_input_on_a_terminal_is_a_usage_error() {
+        match input_source(None, true) {
+            InfoSource::Missing => {}
+            _ => panic!("expected Missing"),
+        }
+    }
+
+    #[test]
+    fn explicit_dash_forces_stdin_regardless_of_the_terminal() {
+        let dash = Path::new("-");
+        assert!(matches!(input_source(Some(dash), true), InfoSource::Stdin));
+        assert!(matches!(input_source(Some(dash), false), InfoSource::Stdin));
+    }
+
+    #[test]
+    fn piped_stdin_without_an_argument_reads_stdin() {
+        assert!(matches!(input_source(None, false), InfoSource::Stdin));
+    }
+
+    #[test]
+    fn a_real_path_with_a_terminal_is_read_as_a_file() {
+        let path = Path::new("README.md");
+        match input_source(Some(path), true) {
+            InfoSource::File(p) => assert_eq!(p, path),
+            _ => panic!("expected File"),
+        }
+    }
 }
