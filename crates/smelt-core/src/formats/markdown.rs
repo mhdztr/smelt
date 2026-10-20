@@ -571,6 +571,53 @@ fn link_dest(dest: &str) -> String {
     }
 }
 
+/// The shared Markdown fixture set (one source of truth for the md -> md
+/// roundtrip here and the md <-> html cross-format roundtrips in
+/// `formats/mod.rs`). Fixtures exercise the loss-prone seams: front matter
+/// via title/author metadata, GFM table alignment, block-level `Image`,
+/// RTL/Arabic with combining marks, and three-level nested lists.
+#[cfg(test)]
+pub(crate) fn md_fixtures() -> Vec<(&'static str, &'static str)> {
+    vec![
+        (
+            "front matter and heading",
+            "---\ntitle: Doc Title\nauthor: A. Author\n---\n\n# Head\n\nbody\n",
+        ),
+        (
+            "rtl arabic with combining marks",
+            "## \u{0645}\u{064f}\u{0644}\u{062e}\u{0637}\n\nThe text \u{0627}\u{0644}\u{0639}\u{0631}\u{0628}\u{064a}\u{0629} \u{0645}\u{062f}\u{0642}\u{0648}\u{0637} stays intact.\n",
+        ),
+        (
+            "gfm table with alignment",
+            "| left | center | right |\n| :--- | :---: | ---: |\n| a | b | c |\n| \u{0627}\u{0644}\u{0639}\u{0631}\u{0628}\u{064a}\u{0629} | mid | 42 |\n",
+        ),
+        (
+            "three level nested list",
+            "1. one\n2. two\n   - a\n   - b\n     1. deep\n     2. deeper\n3. three\n",
+        ),
+        (
+            "code block with lang",
+            "before\n\n```rust\nfn main() {\n    println!(\"hi\");\n}\n```\n\nafter\n",
+        ),
+        (
+            "strikethrough and autolink",
+            "~~gone~~ kept, see https://example.com/docs now\n",
+        ),
+        (
+            "blockquote containing a list",
+            "> quoted intro\n>\n> - item one\n> - item two\n",
+        ),
+        (
+            "emphasis nesting and inline code",
+            "**bold and *italic* together** plus `a_b` code\n",
+        ),
+        (
+            "rule and image",
+            "intro\n\n---\n\n![an alt](img/pic.png)\n\noutro\n",
+        ),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -586,57 +633,22 @@ mod tests {
         String::from_utf8(MarkdownWriter.write(doc, Format::Markdown).unwrap()).unwrap()
     }
 
-    /// Every fixture parses and survives md -> md as a Document-value
-    /// equality (AGENTS.md testing rule); md <-> html cross-format
-    /// roundtrips live in `formats/mod.rs`.
-    fn md_fixtures() -> Vec<(&'static str, &'static str)> {
-        vec![
-            (
-                "front matter",
-                "---\ntitle: Doc Title\nauthor: A. Author\n---\n\n# Head\n\nbody\n",
-            ),
-            (
-                "rtl arabic with combining marks",
-                "## \u{0645}\u{064f}\u{0644}\u{062e}\u{0652}\u{0637}\n\nThe text \u{0627}\u{0644}\u{0639}\u{0631}\u{0628}\u{064a}\u{0629} \u{0645}\u{0652}\u{0646}\u{0642}\u{0648}\u{0637} stays intact.\n",
-            ),
-            (
-                "gfm table with alignment",
-                "| left | center | right |\n| :--- | :---: | ---: |\n| a | b | c |\n| \u{0627}\u{0644}\u{0639}\u{0631}\u{0628}\u{064a}\u{0629} | mid | 42 |\n",
-            ),
-            (
-                "three level nested list",
-                "1. one\n2. two\n   - a\n   - b\n     1. deep\n     2. deeper\n3. three\n",
-            ),
-            (
-                "code block with lang",
-                "before\n\n```rust\nfn main() {\n    println!(\"hi\");\n}\n```\n\nafter\n",
-            ),
-            (
-                "strikethrough and autolink",
-                "~~gone~~ kept, see https://example.com/docs now\n",
-            ),
-            (
-                "blockquote containing a list",
-                "> quoted intro\n>\n> - item one\n> - item two\n",
-            ),
-            (
-                "emphasis nesting and inline code",
-                "**bold and *italic* together** plus `a_b` code\n",
-            ),
-            (
-                "rule and image",
-                "intro\n\n---\n\n![an alt](img/pic.png)\n\noutro\n",
-            ),
-            (
-                "literal metacharacters",
-                "Use *stars* and _underscores_ literally: 2 * 3 and snake_case plus [brackets] stay text.\n",
-            ),
-        ]
+    /// The shared fixtures plus Markdown-only extras: every fixture parses
+    /// and survives md -> md as a Document-value equality (AGENTS.md testing
+    /// rule); md <-> html cross-format roundtrips live in `formats/mod.rs`
+    /// against the same shared base.
+    fn md_only_fixtures() -> Vec<(&'static str, &'static str)> {
+        let mut fixtures = md_fixtures();
+        fixtures.push((
+            "literal metacharacters",
+            "Use *stars* and _underscores_ literally: 2 * 3 and snake_case plus [brackets] stay text.\n",
+        ));
+        fixtures
     }
 
     #[test]
     fn md_roundtrips_are_document_equal() {
-        for (name, src) in md_fixtures() {
+        for (name, src) in md_only_fixtures() {
             let once = parse_md(src);
             let twice = parse_md(&write_md(&once));
             assert_eq!(

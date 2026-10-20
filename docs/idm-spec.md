@@ -72,10 +72,19 @@ FORMATS.md).
 `None`, `Left`, `Center`, `Right` -- table column alignment (GFM `:---`
 syntax, HTML `align`/`style` attribute).
 
-## Invariants (checked by tests)
+## Invariants
+
+The structural invariants are enforced in production by
+`Document::validate()` (`crates/smelt-core/src/idm.rs`), which every reader
+is driven through via `smelt_core::read_document`; a violation surfaces as
+`ReadError::Parse` next to the reader that caused it instead of a later
+writer panic. `validate()` returns an actionable message for the first
+violation found and walks the whole block tree, including blocks nested in
+lists and blockquotes.
 
 1. Heading levels are `1..=6`.
-2. Table column counts agree across header, alignment, and every row.
+2. Table column counts agree across header, alignment, and every row
+   (`align.len() == header.len()` and every row has `header.len()` cells).
 3. List nesting uses inner `List` blocks; there is no depth counter.
 4. `Document` values implement `Debug + Clone + PartialEq + Serialize +
    Deserialize`; roundtrip tests compare `Document` values, never raw text.

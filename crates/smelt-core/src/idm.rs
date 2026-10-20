@@ -88,9 +88,128 @@ pub enum Align {
     Right,
 }
 
+impl Document {
+    /// Check the structural invariants every reader must uphold, returning an
+    /// actionable message for the first violation found.
+    /// These are the guarantees the rest of the pipeline relies on (writers
+    /// index table columns by `align`, renderers index headings by `level`),
+    /// so a reader that violates one would otherwise panic far from the
+    /// cause. Checked over the whole block tree, including blocks nested in
+    /// lists and blockquotes.
+    pub fn validate(&self) -> Result<(), String> {
+        fn check_blocks(blocks: &[Block]) -> Result<(), String> {
+            for block in blocks {
+                match block {
+                    Block::Heading { level, .. } => {
+                        if !(1..=6).contains(level) {
+                            return Err(format!("heading level out of range: {level}"));
+                        }
+                    }
+                    Block::Table {
+                        header,
+                        rows,
+                        align,
+                    } => {
+                        if align.len() != header.len() {
+                            return Err(format!(
+                                "table alignment count {} != column count {}",
+                                align.len(),
+                                header.len()
+                            ));
+                        }
+                        for (i, row) in rows.iter().enumerate() {
+                            if row.len() != header.len() {
+                                return Err(format!(
+                                    "table row {i} has {} cells, expected {}",
+                                    row.len(),
+                                    header.len()
+                                ));
+                            }
+                        }
+                    }
+                    Block::List { items, .. } => {
+                        for item in items {
+                            check_blocks(item)?;
+                        }
+                    }
+                    Block::Blockquote { blocks } => check_blocks(blocks)?,
+                    Block::Paragraph { .. }
+                    | Block::CodeBlock { .. }
+                    | Block::Image { .. }
+                    | Block::Rule => {}
+                }
+            }
+            Ok(())
+        }
+        check_blocks(&self.blocks)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn validate_accepts_the_reference_document() {
+        assert_eq!(sample().validate(), Ok(()));
+    }
+
+    #[test]
+    fn validate_rejects_out_of_range_heading_levels() {
+        let mut doc = sample();
+        doc.blocks = vec![Block::Heading {
+            level: 7,
+            inlines: vec![Inline::Text("too deep".into())],
+        }];
+        let err = doc.validate().expect_err("level 7 is invalid");
+        assert!(err.contains("heading level"), "{err}");
+    }
+
+    #[test]
+    fn validate_rejects_ragged_tables() {
+        let mut doc = sample();
+        doc.blocks = vec![Block::Table {
+            header: vec![
+                vec![Inline::Text("a".into())],
+                vec![Inline::Text("b".into())],
+            ],
+            rows: vec![vec![vec![Inline::Text("only one".into())]]],
+            align: vec![Align::None, Align::None],
+        }];
+        let err = doc.validate().expect_err("ragged row is invalid");
+        assert!(err.contains("row 0"), "{err}");
+    }
+
+    #[test]
+    fn validate_rejects_alignment_column_mismatch() {
+        let mut doc = sample();
+        doc.blocks = vec![Block::Table {
+            header: vec![vec![Inline::Text("a".into())]],
+            rows: vec![],
+            align: vec![Align::None, Align::None],
+        }];
+        let err = doc.validate().expect_err("alignment mismatch is invalid");
+        assert!(err.contains("alignment"), "{err}");
+    }
+
+    #[test]
+    fn validate_walks_nested_blocks() {
+        // A bad heading hidden inside a list item must still be caught: the
+        // invariant applies to the whole tree, not just top-level blocks.
+        let mut doc = sample();
+        doc.blocks = vec![Block::List {
+            ordered: false,
+            start: 0,
+            items: vec![vec![Block::Blockquote {
+                blocks: vec![Block::Heading {
+                    level: 0,
+                    inlines: vec![],
+                }],
+            }]],
+        }];
+        let err = doc.validate().expect_err("nested level 0 is invalid");
+        assert!(err.contains("heading level"), "{err}");
+    }
 
     fn sample() -> Document {
         Document {
@@ -166,24 +285,14 @@ mod tests {
         assert_eq!(doc, back);
     }
 
+    /// Every reader must pass [`Document::validate`]; the fixture is the
+    /// shared reference document, so this exercises the same production
+    /// invariant check the pipeline runs (see `reader_doc` in `lib.rs`).
     #[test]
-    fn sample_invariants() {
+    fn validate_covers_the_whole_fixture() {
         let doc = sample();
-        for block in &doc.blocks {
-            if let Block::Heading { level, .. } = block {
-                assert!((1..=6).contains(level));
-            }
-            if let Block::Table {
-                header,
-                rows,
-                align,
-            } = block
-            {
-                assert_eq!(align.len(), header.len());
-                for row in rows {
-                    assert_eq!(row.len(), header.len());
-                }
-            }
-        }
+        doc.validate()
+            .expect("the shared fixture must satisfy the IDM invariants");
+        assert!(doc.blocks.len() > 5, "fixture should be non-trivial");
     }
 }

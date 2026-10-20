@@ -105,7 +105,7 @@ mod cross_format_tests {
     use crate::idm::Document;
 
     use super::html::{HtmlReader, HtmlWriter};
-    use super::markdown::{MarkdownReader, MarkdownWriter};
+    use super::markdown::{MarkdownReader, MarkdownWriter, md_fixtures};
     use super::text::{TextReader, TextWriter};
 
     fn read_md(src: &str) -> Document {
@@ -129,58 +129,22 @@ mod cross_format_tests {
         String::from_utf8(TextWriter.write(doc, Format::Text).unwrap()).unwrap()
     }
 
-    /// Fixtures chosen to exercise the loss-prone seams: front matter via
-    /// title/author metadata, table alignment via `align` attributes,
-    /// block-level `Image` back as `<img>`, RTL/Arabic with combining
-    /// marks, and three-level nested lists.
-    fn md_fixtures() -> Vec<(&'static str, &'static str)> {
-        vec![
-            (
-                "front matter and heading",
-                "---\ntitle: Doc Title\nauthor: A. Author\n---\n\n# Head\n\nbody\n",
-            ),
-            (
-                "rtl arabic with combining marks",
-                "## \u{0645}\u{064f}\u{0644}\u{062e}\u{0637}\n\nThe text \u{0627}\u{0644}\u{0639}\u{0631}\u{0628}\u{064a}\u{0629} \u{0645}\u{062f}\u{0642}\u{0648}\u{0637} stays intact.\n",
-            ),
-            (
-                "gfm table with alignment",
-                "| left | center | right |\n| :--- | :---: | ---: |\n| a | b | c |\n| \u{0627}\u{0644}\u{0639}\u{0631}\u{0628}\u{064a}\u{0629} | mid | 42 |\n",
-            ),
-            (
-                "three level nested list",
-                "1. one\n2. two\n   - a\n   - b\n     1. deep\n     2. deeper\n3. three\n",
-            ),
-            (
-                "code block with lang",
-                "before\n\n```rust\nfn main() {\n    println!(\"hi\");\n}\n```\n\nafter\n",
-            ),
-            (
-                "strikethrough and autolink",
-                "~~gone~~ kept, see https://example.com/docs now\n",
-            ),
-            (
-                "blockquote containing a list",
-                "> quoted intro\n>\n> - item one\n> - item two\n",
-            ),
-            (
-                "emphasis nesting and inline code",
-                "**bold and *italic* together** plus `a_b` code\n",
-            ),
-            (
-                "rule and image",
-                "intro\n\n---\n\n![an alt](img/pic.png)\n\noutro\n",
-            ),
-            (
-                "links and lists together",
-                "See [the docs](https://example.com \"Docs\") and:\n\n- first\n- second\n",
-            ),
-        ]
+    /// The shared Markdown fixtures plus one cross-format-only extra. The
+    /// shared base lives in `markdown::md_fixtures` (single source of truth
+    /// for the md -> md and md <-> html legs); this adds a fixture whose
+    /// value is the md <-> html seam specifically, not md -> md.
+    fn cross_format_fixtures() -> Vec<(&'static str, &'static str)> {
+        let mut fixtures = md_fixtures();
+        fixtures.push((
+            "links and lists together",
+            "See [the docs](https://example.com \"Docs\") and:\n\n- first\n- second\n",
+        ));
+        fixtures
     }
 
     #[test]
     fn md_html_md_is_document_equal() {
-        for (name, src) in md_fixtures() {
+        for (name, src) in cross_format_fixtures() {
             let doc_md = read_md(src);
             let doc_html = read_html(&write_html(&doc_md));
             assert_eq!(
