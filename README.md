@@ -10,9 +10,11 @@ reader or one writer, not N x M converters.
 
 - **Fast**: ~5 ms startup, persistent warm engine pools (never one subprocess
   per file), page-parallel PDF work, content-hash caching, parallel batches.
-- **Single static binary**: external tools (LibreOffice, pandoc, calibre,
-  groff) are optional accelerators detected at runtime, never requirements.
-  No Python, no Node.
+- **Single self-contained binary**: external tools (LibreOffice, pandoc,
+  calibre, groff) are optional accelerators detected at runtime, never
+  requirements. No Python, no Node. The current Linux build is dynamically
+  linked against glibc (libc, libm, libgcc_s); a fully static musl artifact
+  is planned for M4 release packaging.
 - **Honest output**: fidelity reporting, actionable errors, documented exit
   codes, clean Unicode UI with automatic ASCII fallback.
 

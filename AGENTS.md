@@ -7,7 +7,9 @@ details live in `docs/`.
 ## What this is
 
 `smelt` -- an advanced document converter CLI ("Melt any document into any
-other"). Rust workspace, single static binary, N+M converters via the IDM:
+other"). Rust workspace, one self-contained binary (dynamically linked
+against glibc today; a fully static musl artifact is planned for M4 release
+packaging), N+M converters via the IDM:
 Reader -> Intermediate Document Model -> transform -> Writer. External tools
 (LibreOffice, pandoc, calibre, groff) are optional accelerators driven by
 warm pools, never required. No Python/Node, ever.

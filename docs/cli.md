@@ -31,10 +31,22 @@ Exit codes (documented, stable):
 | Code | Meaning |
 | --- | --- |
 | 0 | success |
-| 1 | partial failure (batch: at least one succeeded, at least one failed) |
-| 2 | usage error (bad flags, missing `-t` where required) |
+| 1 | partial failure (batch: at least one succeeded, at least one failed); also input read errors other than "not found" (e.g. permission denied) |
+| 2 | usage error (bad flags, missing `-t` where required, batch output-name collision) |
 | 3 | unsupported conversion (no reader or writer for a format) |
-| 4 | missing input path |
+| 4 | missing input path (the path does not exist) |
+
+Only a genuinely absent input is exit 4. A path that exists but cannot be
+opened reports the OS reason at exit 1, because claiming "no such file" for
+an unreadable file is actively misleading:
+
+```
+$ smelt convert secret.md -t html
+✗ cannot read secret.md: permission denied     (exit 1)
+
+$ smelt convert /nonexistent.md -t html
+✗ no such file: /nonexistent.md                (exit 4)
+```
 
 ## `smelt convert` (alias `c`)
 
@@ -73,21 +85,45 @@ inputs use a directory (batch mode).
 An inferred same-format pair (md -> md) is allowed and acts as a
 normalization pass.
 
-### Stdin source-format rule
+### Plain-text source-format rule (stdin and files)
 
-`-` has no extension to detect from, so the source format comes from the
-bytes alone. When that detection lands on plain `Text`, the **Markdown
-reader** is used: markdown is a superset of plain text, so piping
-`**bold**` or `# Hi` through a pipe converts properly instead of coming
-out verbatim.
+When detection lands on plain `Text` -- which happens for any valid-UTF-8
+input with no markup and no revealing extension -- the **Markdown reader**
+is used, on **both** channels. Markdown is a superset of plain text, so
+piping `**bold**` or `# Hi` through a pipe converts properly instead of
+coming out verbatim, and a `.txt` file with the same bytes converts to the
+same result:
 
 ```
 $ printf '**bold**\n' | smelt convert - -t html
 <p><strong>bold</strong></p>
 
-$ printf '<h1>Hi</h1>\n' | smelt convert - -t md
-# Hi
+$ printf '# Hi\n' | smelt convert - -t html
+<h1>Hi</h1>
+
+$ printf 'a **b** c\n' > p.txt
+$ smelt convert p.txt -t html
+<p>a <strong>b</strong> c</p>
 ```
+
+Consequence: `-t txt` output is **lossy for markup**, identically on both
+channels. Emphasis markers are parsed into the IDM and the plain-text
+writer emits the text without them, exactly as an HTML-to-text conversion
+drops tags. Content is never dropped, but markup is:
+
+```
+$ printf 'a **b** c\n' | smelt convert - -t txt
+a b c
+
+$ smelt convert p.txt -t txt -o out.txt && cat out.txt
+a b c
+```
+
+Before M0 review the two channels disagreed here: stdin was read as
+Markdown (dropping the markers) while a `.txt` file was read by the
+plain-text reader (keeping them verbatim), so the same bytes produced
+different output depending on how they arrived. Both channels now share one
+source-format rule.
 
 ### Batch mode
 
@@ -96,6 +132,17 @@ Directory input converts every regular file directly inside it
 (dot-prefixed) and subdirectories are skipped. Each file is converted in
 parallel (rayon). Output files keep their stem and get the target
 extension: `notes.2026.md` -> `notes.2026.html`.
+
+Two inputs whose stems collide (`notes.md` and `notes.html`, both mapping
+to `notes.txt`) would map to the **same** output file. Because the writes
+run in parallel, continuing would leave a nondeterministic winner and exit
+0, silently discarding one result. This is refused before anything is
+written: **error, exit 2**, naming both inputs and the shared output path.
+
+```
+$ smelt convert docs/ -t txt -o out
+✗ batch output collision: docs/notes.html and docs/notes.md both map to out/notes.txt; rename one input or convert them separately
+```
 
 Progress: on a TTY, one progress bar per file inside a multi-progress
 group; on a non-TTY (and under `--color=never`), plain lines:

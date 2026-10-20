@@ -20,9 +20,12 @@
 3. **Static FFI where it is faster.** Hot paths (PDF read, OCR, text shaping,
    compression) use C libraries statically linked via FFI: PDFium (BSD-3),
    Tesseract 5 + Leptonica, HarfBuzz/FriBidi, zlib-ng. See ADR 0001.
-4. **Zero required runtime.** One static binary works on Linux, macOS, and
-   Windows. External tools are optional, detected at runtime, reported by
-   `smelt doctor`. No Python, no Node, ever. See ADR 0004.
+4. **Zero required runtime.** One self-contained binary works on Linux,
+   macOS, and Windows. External tools are optional, detected at runtime,
+   reported by `smelt doctor`. No Python, no Node, ever. See ADR 0004.
+   Note: the M0 Linux build is dynamically linked against glibc (libc,
+   libm, libgcc_s); a fully static musl artifact is M4 release packaging
+   work, not a claim about today's binary.
 
 ## Milestones
 

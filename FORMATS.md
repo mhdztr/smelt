@@ -14,6 +14,8 @@ required.
 | EPUB | yes | yes | native | M1 | zip + XHTML spine; reuses the HTML converter |
 | DOCX | yes | yes | LibreOffice (optional) | M1 | via warm soffice pool |
 | ODT | yes | yes | LibreOffice (optional) | M1 | via warm soffice pool |
+| ODS | yes | yes | LibreOffice (optional) | M1 | OpenDocument spreadsheet; detected in M0, converted via soffice pool |
+| ODP | yes | yes | LibreOffice (optional) | M1 | OpenDocument presentation; detected in M0, converted via soffice pool |
 | PPTX | yes | yes | LibreOffice (optional) | M1 | slide-per-block; layout is lossy |
 | XLSX | yes | yes | LibreOffice (optional) | M1 | sheets become tables; multi-sheet is lossy |
 | PDF | yes | yes | PDFium (static FFI) | M2 | page-parallel via rayon |
@@ -42,16 +44,25 @@ Magic bytes first; extension is only a tiebreak/disambiguator.
    - `word/document.xml` -> DOCX
    - `ppt/presentation.xml` -> PPTX
    - `xl/workbook.xml` -> XLSX
-   - `mimetype` + `content.xml`, no OOXML marker -> ODT
+   - `mimetype` + `content.xml`, no OOXML marker -> ODT; the stored ODF
+     mimetype refines this to ODS (spreadsheet) or ODP (presentation) when
+     present, so exit-3 messages name the right subformat
    - nothing matched -> unknown ("zip archive (unrecognized layout)")
 3. `{\rtf` at offset 0 (<= 32 bytes of leading whitespace/BOM skipped) -> RTF.
 4. Case-insensitive scan of the first 1 KiB for `<!doctype html`, `<html`,
    `<head`, `<body` (after optional BOM/whitespace/XML declaration) -> HTML
-   (certain with doctype, guessed otherwise).
+   (certain with doctype). A leading `<!--` comment or `<!doctype` is also
+   certain. Otherwise a leading HTML tag (`<p>`, `<div>`, `<table>`,
+   `<span>`, ... or a stray closer) -> HTML guessed. The tag test requires
+   `<` + optional `/` + an ASCII letter and a closing `>` in the scanned
+   head, so prose (`a < b`, an unclosed `<name`, C++ `vector<int>`) stays
+   text.
 5. Valid UTF-8 in the read prefix -> text family, by extension:
    `.md`/`.markdown`/`.mdown` -> Markdown; `.csv` -> CSV; `.tsv` -> TSV;
-   `.txt`/`.text`/none/anything-else -> plain text. All guessed -- markdown
-   has no magic bytes. Valid UTF-8 is never reported as unknown.
+   `.html`/`.htm`/`.xhtml` -> HTML (a file with no markup in its prefix is
+   still HTML by extension); `.txt`/`.text`/none/anything-else -> plain
+   text. All guessed -- markdown has no magic bytes. Valid UTF-8 is never
+   reported as unknown.
 6. Invalid UTF-8 and no magic match -> unknown.
 
 ## Known lossy cases (M0)

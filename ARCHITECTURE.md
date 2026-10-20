@@ -100,6 +100,10 @@ Hot-path C libraries are statically linked, feature-gated per platform:
   content but does not shape).
 - **zlib-ng** -- fast deflate for OOXML/zip internals when needed.
 
+None of these are linked yet, so the M0 binary contains no FFI at all. The
+M0 Linux binary is dynamically linked against glibc (libc, libm, libgcc_s);
+a fully static musl artifact is M4 release packaging work.
+
 Bindings are hand-written `unsafe` shims confined to the crate that owns the
 library; no bindgen at build time (reproducible builds, no clang
 requirement). Static linking keeps the zero-required-runtime promise

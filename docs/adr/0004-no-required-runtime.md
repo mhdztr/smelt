@@ -10,7 +10,11 @@ installation fragile and version conflicts common.
 
 ## Decision
 
-- One statically linked binary is the only hard requirement.
+- One self-contained binary is the only hard requirement. The current
+  Linux build is dynamically linked against glibc (libc, libm, libgcc_s);
+  a fully static musl artifact is planned for M4 release packaging. Nothing
+  in this ADR depends on the linking mode: what matters is that no separate
+  runtime has to be installed.
 - External tools (LibreOffice, pandoc, calibre, groff) are **optional
   accelerators**, detected at runtime and reported by `smelt doctor`; every
   feature they provide fails with an actionable message when absent, and

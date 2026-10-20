@@ -5,7 +5,9 @@ Status: accepted
 ## Context
 
 smelt's thesis is speed with zero required runtime: ~5 ms startup, fast
-batch conversion, one static binary on Linux/macOS/Windows. Several hot
+batch conversion, one self-contained binary on Linux/macOS/Windows (the
+current Linux build is dynamically linked against glibc; a fully static
+musl artifact is M4 release packaging work). Several hot
 operations (PDF parse/render, OCR, text shaping, deflate) have mature C
 implementations that are dramatically faster and more correct than a from
 scratch Rust rewrite would be at this stage.
