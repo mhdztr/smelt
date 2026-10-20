@@ -8,7 +8,7 @@ use std::time::Instant;
 
 use rayon::prelude::*;
 
-use smelt_core::{Format, ReadError, WriteError, reader_for, writer_for};
+use smelt_core::{Format, ReadError, WriteError, read_document, reader_for, writer_for};
 use smelt_detect::{detect, detect_path};
 
 use crate::SmeltError;
@@ -32,12 +32,33 @@ pub fn run(args: &ConvertArgs, theme: &Theme, color: ColorChoice) -> Result<(), 
     }
 
     match std::fs::metadata(&input) {
-        Err(_) => Err(SmeltError::missing(format!(
-            "no such file: {}",
-            input.display()
-        ))),
+        Err(e) => Err(io_error(&e, &input)),
         Ok(meta) if meta.is_dir() => run_batch(args, theme, color, &input),
         Ok(_) => run_file(args, theme, &input),
+    }
+}
+
+/// Map an I/O failure on an input path to a documented exit code
+/// (docs/cli.md). Only `NotFound` is "missing input" (exit 4); a permission
+/// error is actionable in its own right and must not claim the file does not
+/// exist, so it reports the OS reason at exit 1.
+fn io_error(err: &std::io::Error, path: &Path) -> SmeltError {
+    if err.kind() == std::io::ErrorKind::NotFound {
+        SmeltError::missing(format!("no such file: {}", path.display()))
+    } else {
+        SmeltError::new(
+            1,
+            format!("cannot read {}: {}", path.display(), io_reason(err)),
+        )
+    }
+}
+
+/// A short, human-readable reason for an I/O error (no Debug dump).
+fn io_reason(err: &std::io::Error) -> String {
+    match err.kind() {
+        std::io::ErrorKind::PermissionDenied => "permission denied".to_owned(),
+        std::io::ErrorKind::IsADirectory => "path is a directory".to_owned(),
+        _ => err.to_string(),
     }
 }
 
@@ -77,12 +98,6 @@ fn file_target(args: &ConvertArgs, input: &Path) -> Result<(Format, PathBuf), Sm
     }
 }
 
-fn reader_source(fmt: Format) -> Result<&'static dyn smelt_core::Reader, SmeltError> {
-    reader_for(fmt).ok_or_else(|| {
-        SmeltError::unsupported(ReadError::Unsupported(fmt.name().to_lowercase()).to_string())
-    })
-}
-
 fn target_writer(fmt: Format) -> Result<&'static dyn smelt_core::Writer, SmeltError> {
     writer_for(fmt).ok_or_else(|| {
         SmeltError::unsupported(WriteError::Unsupported(fmt.name().to_lowercase()).to_string())
@@ -106,15 +121,10 @@ fn run_stdin(args: &ConvertArgs, theme: &Theme) -> Result<(), SmeltError> {
         .map_err(|e| SmeltError::new(1, format!("failed: read stdin ({e})")))?;
 
     let detection = detect(&bytes, None);
-    let source = if detection.format == Format::Text {
-        Format::Markdown
-    } else {
-        detection.format
-    };
+    let source = source_format(detection.format);
 
     let started = Instant::now();
-    let doc = reader_source(source)?
-        .read(&bytes, source)
+    let doc = read_document(source, &bytes)
         .map_err(|e| SmeltError::new(exit_code_for(&e), format!("failed: stdin ({e})")))?;
     let out = target_writer(target)?
         .write(&doc, target)
@@ -142,20 +152,37 @@ fn run_stdin(args: &ConvertArgs, theme: &Theme) -> Result<(), SmeltError> {
     Ok(())
 }
 
+/// The reader used for a source format: detected plain `Text` is read with
+/// the **Markdown** reader. Markdown is a superset of plain text, and the
+/// plain-text reader collapses whitespace and keeps every marker literal
+/// (`**bold**` stays `**bold**`, then `TextWriter` drops the emphasis
+/// markers), so reading plain text as text destroys content as soon as the
+/// target is not plain text. Shared by the stdin and file paths so both
+/// channels interpret identical bytes identically (docs/cli.md).
+fn source_format(detected: Format) -> Format {
+    if detected == Format::Text {
+        Format::Markdown
+    } else {
+        detected
+    }
+}
+
 /// One file: detect -> read -> write. Output path is `-o`, else the input
 /// path with the target extension.
 fn run_file(args: &ConvertArgs, theme: &Theme, input: &Path) -> Result<(), SmeltError> {
     let (target, out_path) = file_target(args, input)?;
 
-    let detection = detect_path(input)
-        .map_err(|_| SmeltError::missing(format!("no such file: {}", input.display())))?;
-    let reader = reader_source(detection.format)?;
+    let detection = detect_path(input).map_err(|e| io_error(&e, input))?;
+    // Same source-format resolution as stdin (docs/cli.md stdin rule): plain
+    // text is read through the Markdown reader on both channels, so the same
+    // bytes convert to the same result whichever way they arrive.
+    let source = source_format(detection.format);
 
     let bytes = std::fs::read(input)
         .map_err(|e| SmeltError::new(1, format!("failed: read {} ({e})", input.display())))?;
 
     let started = Instant::now();
-    let doc = reader.read(&bytes, detection.format).map_err(|e| {
+    let doc = read_document(source, &bytes).map_err(|e| {
         SmeltError::new(
             exit_code_for(&e),
             format!(
@@ -243,6 +270,12 @@ fn run_batch(
         files.push(entry.path());
     }
     files.sort();
+
+    // Collision check before any write: two inputs with the same stem and a
+    // different extension (`notes.md` + `notes.html`) map to the same output
+    // name. The writes run in parallel under rayon, so silently continuing
+    // would leave a nondeterministic winner and exit 0 (docs/cli.md: exit 2).
+    check_batch_collisions(&files, &out_dir, target)?;
 
     let use_bars = !args.quiet && color != ColorChoice::Never && std::io::stderr().is_terminal();
     let multi = indicatif::MultiProgress::new();
@@ -352,25 +385,56 @@ impl FileOutcome {
     }
 }
 
-fn convert_batch_file(path: &Path, out_dir: &Path, target: Format) -> FileOutcome {
-    let in_name = file_name(path);
-    let out_path = out_dir.join(format!(
+/// The output path for one batch input: the output directory plus the input
+/// stem and the target extension. Single source of truth for the mapping
+/// [`check_batch_collisions`] validates.
+fn batch_out_path(path: &Path, out_dir: &Path, target: Format) -> PathBuf {
+    out_dir.join(format!(
         "{}.{}",
         path.file_stem().and_then(|s| s.to_str()).unwrap_or("out"),
         target.ext()
-    ));
+    ))
+}
+
+/// Refuse a batch whose inputs would map to the same output file (exit 2,
+/// before anything is written). Without this the parallel rayon writes race
+/// and one input silently overwrites the other's output.
+fn check_batch_collisions(
+    files: &[PathBuf],
+    out_dir: &Path,
+    target: Format,
+) -> Result<(), SmeltError> {
+    let mut seen: std::collections::BTreeMap<PathBuf, &Path> = std::collections::BTreeMap::new();
+    for path in files {
+        let out_path = batch_out_path(path, out_dir, target);
+        if let Some(previous) = seen.insert(out_path.clone(), path.as_path()) {
+            return Err(SmeltError::usage(format!(
+                "batch output collision: {} and {} both map to {}; \
+                 rename one input or convert them separately",
+                previous.display(),
+                path.display(),
+                out_path.display()
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn convert_batch_file(path: &Path, out_dir: &Path, target: Format) -> FileOutcome {
+    let in_name = file_name(path);
+    let out_path = batch_out_path(path, out_dir, target);
     let out_name = file_name(&out_path);
 
     let detection = match detect_path(path) {
         Ok(d) => d,
         Err(e) => {
             return FileOutcome::Failed {
-                message: format!("read {in_name} ({e})"),
+                message: format!("read {in_name} ({})", io_reason(&e)),
                 unsupported: false,
             };
         }
     };
-    let Some(reader) = reader_for(detection.format) else {
+    if reader_for(detection.format).is_none() {
         return FileOutcome::Failed {
             message: ReadError::Unsupported(detection.format.name().to_lowercase()).to_string(),
             unsupported: true,
@@ -394,7 +458,7 @@ fn convert_batch_file(path: &Path, out_dir: &Path, target: Format) -> FileOutcom
     };
 
     let started = Instant::now();
-    let doc = match reader.read(&bytes, detection.format) {
+    let doc = match read_document(detection.format, &bytes) {
         Ok(d) => d,
         Err(e) => {
             return FileOutcome::Failed {
