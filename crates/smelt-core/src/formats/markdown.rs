@@ -4,8 +4,9 @@
 //! enabled; task lists are disabled (IDM v0 has no checkbox node; `- [ ]`
 //! degrades to plain list-item text -- see FORMATS.md lossy list). A leading
 //! `---` ... `---` front matter block carries `title`/`author` into IDM
-//! metadata. Raw HTML blocks and inline tags are parsed into structure once
-//! the html converter lands; until then they drop (FORMATS.md).
+//! metadata. Raw HTML blocks parse into structure through the html
+//! converter's fragment walker; inline HTML tags are dropped (IDM v0 has no
+//! raw-inline node -- FORMATS.md lossy list).
 //!
 //! Writer: IDM -> markdown. Minimal escaping keeps literal text runs from
 //! re-parsing as structure. Roundtrip tests compare `Document` values, never
@@ -135,10 +136,11 @@ impl Converter {
                         blocks: self.blocks(child),
                     });
                 }
-                NodeValue::HtmlBlock(_) => {
-                    // Raw HTML blocks parse into structure via
-                    // `formats::html::fragment_blocks` once the html
-                    // converter lands; dropped here (task 9).
+                NodeValue::HtmlBlock(html) => {
+                    // Raw HTML blocks parse into structure via the html
+                    // converter's fragment walker (same rules as html input;
+                    // metadata is not extracted from fragments).
+                    out.extend(crate::formats::html::fragment_blocks(&html.literal));
                 }
                 // Containers reachable only through their parents.
                 NodeValue::Item(_) | NodeValue::TableRow(_) | NodeValue::TableCell => {
@@ -212,9 +214,9 @@ fn push_inline<'a>(node: &'a AstNode<'a>, out: &mut Vec<Inline>, images: &mut Ve
         }
         NodeValue::Image(_) => push_image_block(node, images),
         NodeValue::HtmlInline(_) => {
-            // Inline HTML is handled by the stateful sibling pass in
-            // `html_siblings`; reaching here means a stray tag outside any
-            // recognized pair, which is dropped.
+            // Inline HTML drops: comrak parses tags into separate HtmlInline
+            // nodes, and the IDM v0 inline set has no raw-passthrough node
+            // (documented in FORMATS.md).
         }
         _ => {}
     }
