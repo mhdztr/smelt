@@ -371,10 +371,7 @@ mod tests {
     #[test]
     fn pdf_magic() {
         assert_eq!(fmt(b"%PDF-1.7 rest", None), Format::Pdf);
-        assert_eq!(
-            detect(b"%PDF-1.7", None).confidence,
-            Confidence::Certain
-        );
+        assert_eq!(detect(b"%PDF-1.7", None).confidence, Confidence::Certain);
     }
 
     #[test]
