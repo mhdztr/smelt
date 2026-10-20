@@ -107,6 +107,83 @@ fn single_file_converts_to_html() {
 }
 
 #[test]
+fn output_extension_infers_the_target_format() {
+    // docs/cli.md resolution table: with no `-t`, a known extension on `-o`
+    // infers the format. Regression test: the inference path was missing and
+    // the README quickstart's first example failed with exit 2.
+    let dir = TempDir::new("infer-from-o");
+    let input = dir.file("note.md", "# Hi\n\n**bold**\n");
+    let out_path = dir.path().join("note.html");
+    let out = run([
+        "convert",
+        input.to_str().unwrap(),
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+
+    assert_eq!(code(&out), 0, "stderr: {}", stderr_of(&out));
+    let html = fs::read_to_string(&out_path).expect("output file written");
+    assert!(html.contains("<h1>Hi</h1>"), "{html}");
+    assert!(html.contains("<strong>bold</strong>"), "{html}");
+    assert!(
+        stderr_of(&out).contains("note.md -> note.html"),
+        "success line"
+    );
+
+    // An alias extension infers too (`htm` -> Html).
+    let alias_path = dir.path().join("alias.htm");
+    let alias = run([
+        "convert",
+        input.to_str().unwrap(),
+        "-o",
+        alias_path.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&alias), 0, "stderr: {}", stderr_of(&alias));
+    assert!(alias_path.is_file(), "alias output written");
+
+    // `-t` still wins over an inferable `-o` extension.
+    let txt_path = dir.path().join("forced.txt");
+    let forced = run([
+        "convert",
+        input.to_str().unwrap(),
+        "-t",
+        "txt",
+        "-o",
+        txt_path.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&forced), 0, "stderr: {}", stderr_of(&forced));
+    let txt = fs::read_to_string(&txt_path).expect("output file written");
+    assert!(
+        !txt.contains("<h1>"),
+        "-t wins over the -o extension: {txt}"
+    );
+}
+
+#[test]
+fn unknown_output_extension_is_a_usage_error() {
+    // No `-t` and an extension nobody can map: exit 2, and the message names
+    // the path so the user can see what was rejected.
+    let dir = TempDir::new("infer-unknown");
+    let input = dir.file("note.md", "# Hi\n");
+    let out_path = dir.path().join("note.zzz");
+    let out = run([
+        "convert",
+        input.to_str().unwrap(),
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+
+    assert_eq!(code(&out), 2, "stderr: {}", stderr_of(&out));
+    let err = stderr_of(&out);
+    assert!(
+        err.contains("pass -t/--to or -o/--output"),
+        "actionable message: {err}"
+    );
+    assert!(err.contains("note.zzz"), "message names the path: {err}");
+    assert!(!out_path.exists(), "nothing written on a usage error");
+}
+
+#[test]
 fn stdin_streams_html_to_stdout() {
     let out = run_stdin(["convert", "-", "-t", "html"], "# Hi\n\n**bold**\n");
 

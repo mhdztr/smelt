@@ -41,12 +41,37 @@ pub fn run(args: &ConvertArgs, theme: &Theme, color: ColorChoice) -> Result<(), 
     }
 }
 
-/// Parse `-t`, the single error path for every unknown format name.
-fn target_format(args: &ConvertArgs) -> Result<Format, SmeltError> {
-    match &args.to {
-        Some(name) => Format::from_name(name)
-            .ok_or_else(|| SmeltError::usage(format!("unknown format: {name}"))),
-        None => Err(SmeltError::usage(
+/// Output-format resolution for a single file (docs/cli.md): `-t` wins;
+/// otherwise a known extension on `-o` infers the format; otherwise usage
+/// error. `out_path` is the resolved output path (or `None` when the caller
+/// should derive it from the input path).
+fn file_target(args: &ConvertArgs, input: &Path) -> Result<(Format, PathBuf), SmeltError> {
+    if let Some(name) = &args.to {
+        let target = Format::from_name(name)
+            .ok_or_else(|| SmeltError::usage(format!("unknown format: {name}")))?;
+        let out_path = match &args.output {
+            Some(p) if p != Path::new("-") => p.clone(),
+            _ => input.with_extension(target.ext()),
+        };
+        return Ok((target, out_path));
+    }
+
+    match &args.output {
+        Some(p) if p != Path::new("-") => {
+            let inferred = p
+                .extension()
+                .and_then(|e| e.to_str())
+                .and_then(Format::from_name);
+            match inferred {
+                Some(target) => Ok((target, p.clone())),
+                None => Err(SmeltError::usage(format!(
+                    "pass -t/--to or -o/--output to choose the output format: \
+                     cannot infer a format from {}",
+                    p.display()
+                ))),
+            }
+        }
+        _ => Err(SmeltError::usage(
             "pass -t/--to or -o/--output to choose the output format",
         )),
     }
@@ -120,11 +145,7 @@ fn run_stdin(args: &ConvertArgs, theme: &Theme) -> Result<(), SmeltError> {
 /// One file: detect -> read -> write. Output path is `-o`, else the input
 /// path with the target extension.
 fn run_file(args: &ConvertArgs, theme: &Theme, input: &Path) -> Result<(), SmeltError> {
-    let target = target_format(args)?;
-    let out_path = match &args.output {
-        Some(p) if p != Path::new("-") => p.clone(),
-        _ => input.with_extension(target.ext()),
-    };
+    let (target, out_path) = file_target(args, input)?;
 
     let detection = detect_path(input)
         .map_err(|_| SmeltError::missing(format!("no such file: {}", input.display())))?;
