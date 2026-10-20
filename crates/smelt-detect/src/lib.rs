@@ -19,6 +19,8 @@ pub enum Format {
     Pdf,
     Docx,
     Odt,
+    Ods,
+    Odp,
     Xlsx,
     Pptx,
     Epub,
@@ -38,6 +40,8 @@ impl Format {
             Format::Pdf => "Pdf",
             Format::Docx => "Docx",
             Format::Odt => "Odt",
+            Format::Ods => "Ods",
+            Format::Odp => "Odp",
             Format::Xlsx => "Xlsx",
             Format::Pptx => "Pptx",
             Format::Epub => "Epub",
@@ -57,6 +61,8 @@ impl Format {
             Format::Pdf => "pdf",
             Format::Docx => "docx",
             Format::Odt => "odt",
+            Format::Ods => "ods",
+            Format::Odp => "odp",
             Format::Xlsx => "xlsx",
             Format::Pptx => "pptx",
             Format::Epub => "epub",
@@ -81,6 +87,8 @@ impl Format {
             "pdf" => Format::Pdf,
             "docx" => Format::Docx,
             "odt" => Format::Odt,
+            "ods" => Format::Ods,
+            "odp" => Format::Odp,
             "xlsx" => Format::Xlsx,
             "pptx" => Format::Pptx,
             "epub" => Format::Epub,
@@ -158,7 +166,6 @@ pub fn detect(bytes: &[u8], ext: Option<&str>) -> Detection {
     if valid_utf8(bytes) {
         return detect_text_family(ext);
     }
-
     Detection {
         format: Format::Unknown,
         confidence: Confidence::Guessed,
@@ -218,6 +225,24 @@ fn detect_zip(bytes: &[u8]) -> Detection {
         };
     }
     if has("mimetype") && has("content.xml") {
+        // OpenDocument subtypes share the mimetype + content.xml layout;
+        // name the actual kind so exit-3 messages do not lie. The stored
+        // mimetype entry holds the application/vnd.oasis.opendocument.* MIME
+        // type verbatim (uncompressed), so a substring scan sees it.
+        if has("application/vnd.oasis.opendocument.spreadsheet") {
+            return Detection {
+                format: Format::Ods,
+                confidence: Confidence::Certain,
+                evidence: "zip marker: OpenDocument spreadsheet mimetype",
+            };
+        }
+        if has("application/vnd.oasis.opendocument.presentation") {
+            return Detection {
+                format: Format::Odp,
+                confidence: Confidence::Certain,
+                evidence: "zip marker: OpenDocument presentation mimetype",
+            };
+        }
         return Detection {
             format: Format::Odt,
             confidence: Confidence::Certain,
@@ -262,6 +287,15 @@ fn detect_html(bytes: &[u8]) -> Option<Detection> {
     let head = &rest[..scan_len];
     let lower: Vec<u8> = head.iter().map(|b| b.to_ascii_lowercase()).collect();
 
+    // A leading comment/`<html>`-less doctype-less document still starts with
+    // a tag; that is the strongest signal short of the doctype.
+    if starts_with_tag(&lower, b"<!--") || starts_with_tag(&lower, b"<!doctype") {
+        return Some(Detection {
+            format: Format::Html,
+            confidence: Confidence::Certain,
+            evidence: "tag scan: <!DOCTYPE html>",
+        });
+    }
     if find(&lower, b"<!doctype html").is_some() {
         return Some(Detection {
             format: Format::Html,
@@ -278,21 +312,66 @@ fn detect_html(bytes: &[u8]) -> Option<Detection> {
             });
         }
     }
+    // A fragment or full document that opens with any other tag (`<p>`,
+    // `<div>`, `<table>`, `<span>`, ...) is still HTML. This is the common
+    // "HTML without doctype and without <html>/<body>" case: without it the
+    // bytes fall through to the UTF-8 text fallback and get read as plain
+    // text, writing literal markup back out with exit 0.
+    if starts_with_any_tag(&lower) {
+        return Some(Detection {
+            format: Format::Html,
+            confidence: Confidence::Guessed,
+            evidence: "tag scan: leading HTML tag",
+        });
+    }
     None
+}
+
+/// Whether the lowered head begins with `needle` (after optional whitespace,
+/// which the caller already skipped).
+fn starts_with_tag(lower: &[u8], needle: &[u8]) -> bool {
+    lower.starts_with(needle)
+}
+
+/// Whether the lowered head opens with an HTML tag: `<` followed by an ASCII
+/// letter (an element name) or `/` + letter (a stray closer). Deliberately
+/// conservative so prose that merely mentions `<` or `a < b` stays text, and
+/// non-HTML markup such as `<foo:bar` XML namespaces does not match: the
+/// name must start with a letter and the tag must be terminated.
+fn starts_with_any_tag(lower: &[u8]) -> bool {
+    let Some(rest) = lower.strip_prefix(b"<") else {
+        return false;
+    };
+    let rest = rest.strip_prefix(b"/").unwrap_or(rest);
+    let Some(&first) = rest.first() else {
+        return false;
+    };
+    if !first.is_ascii_alphabetic() {
+        return false;
+    }
+    // The tag must close within the scanned head; an unclosed `<name` is
+    // more likely prose (`i < n and ...`).
+    matches!(rest.iter().position(|&b| b == b'>'), Some(close) if close > 0)
 }
 
 fn detect_text_family(ext: Option<&str>) -> Detection {
     let ext: &str = &ext.unwrap_or("").to_ascii_lowercase();
-    let (format, evidence) = match ext {
-        "md" | "markdown" | "mdown" => (Format::Markdown, "extension .md"),
-        "txt" | "text" | "" => (Format::Text, "valid UTF-8 text"),
-        "csv" => (Format::Csv, "extension .csv"),
-        "tsv" => (Format::Tsv, "extension .tsv"),
-        _ => (Format::Text, "valid UTF-8 text"),
+    let (format, confidence, evidence) = match ext {
+        "md" | "markdown" | "mdown" => (Format::Markdown, Confidence::Guessed, "extension .md"),
+        "txt" | "text" | "" => (Format::Text, Confidence::Guessed, "valid UTF-8 text"),
+        "csv" => (Format::Csv, Confidence::Guessed, "extension .csv"),
+        "tsv" => (Format::Tsv, Confidence::Guessed, "extension .tsv"),
+        // An `.html`/`.htm` file that reached the text fallback contains no
+        // HTML tag in its first KiB (bare fragment text, or a file whose
+        // markup starts later). The extension is authoritative here: without
+        // this arm the bytes were read as plain text and the literal markup
+        // written back out with exit 0.
+        "html" | "htm" | "xhtml" => (Format::Html, Confidence::Guessed, "extension .html"),
+        _ => (Format::Text, Confidence::Guessed, "valid UTF-8 text"),
     };
     Detection {
         format,
-        confidence: Confidence::Guessed,
+        confidence,
         evidence,
     }
 }
@@ -407,6 +486,33 @@ mod tests {
         assert_eq!(fmt(&zip, None), Format::Odt);
     }
 
+    // Regression: OpenDocument spreadsheets and presentations share the
+    // `mimetype` + `content.xml` layout and used to be reported as ODT, so
+    // the exit-3 message named the wrong format.
+    #[test]
+    fn opendocument_subtypes_are_distinguished() {
+        let mut ods = stored_zip_entry(
+            "mimetype",
+            b"application/vnd.oasis.opendocument.spreadsheet",
+        );
+        ods.extend(stored_zip_entry("content.xml", b"<office/>"));
+        assert_eq!(fmt(&ods, None), Format::Ods);
+        assert_eq!(Format::Ods.name(), "Ods");
+
+        let mut odp = stored_zip_entry(
+            "mimetype",
+            b"application/vnd.oasis.opendocument.presentation",
+        );
+        odp.extend(stored_zip_entry("content.xml", b"<office/>"));
+        assert_eq!(fmt(&odp, None), Format::Odp);
+        assert_eq!(Format::Odp.name(), "Odp");
+
+        // Explicit ODF mimetype wins even without a companion entry.
+        let mut text = stored_zip_entry("mimetype", b"application/vnd.oasis.opendocument.text");
+        text.extend(stored_zip_entry("content.xml", b"<office/>"));
+        assert_eq!(fmt(&text, None), Format::Odt);
+    }
+
     #[test]
     fn unknown_zip_layout() {
         let zip = stored_zip_entry("random.bin", b"\x00\x01");
@@ -440,6 +546,55 @@ mod tests {
         let d = detect(b"<html><body>x</body></html>", None);
         assert_eq!(d.format, Format::Html);
         assert_eq!(d.confidence, Confidence::Guessed);
+    }
+
+    // Regression: an HTML file with no doctype and no `<html>`/`<head>`/
+    // `<body>` used to fall through to the UTF-8 text fallback and be read as
+    // plain text, writing literal markup back out with exit 0.
+    #[test]
+    fn html_fragment_without_structural_tags_is_html() {
+        for (name, src) in [
+            ("paragraph", "<p>Hello</p>\n"),
+            ("div", "<div class=\"a\">text</div>\n"),
+            ("table", "<table><tr><td>c</td></tr></table>\n"),
+            ("list", "<ul><li>one</li></ul>\n"),
+            ("uppercase", "<P>Hello</P>\n"),
+            ("leading whitespace", "  \n\t<p>Hello</p>\n"),
+            ("stray closer", "</div>\n"),
+        ] {
+            let d = detect(src.as_bytes(), None);
+            assert_eq!(d.format, Format::Html, "not Html: {name} ({src:?})");
+            assert_eq!(d.confidence, Confidence::Guessed, "confidence: {name}");
+        }
+        // A leading comment is as strong a signal as a doctype.
+        let comment = detect(b"<!-- a note -->\n<p>after</p>\n", None);
+        assert_eq!(comment.format, Format::Html);
+        assert_eq!(comment.confidence, Confidence::Certain);
+    }
+
+    #[test]
+    fn html_extension_wins_when_no_tag_is_in_the_prefix() {
+        // A `.html` file whose first KiB has no markup at all (fragment text,
+        // or markup that starts later) is still HTML by extension.
+        let d = detect(b"just some text with no markup\n", Some("html"));
+        assert_eq!(d.format, Format::Html);
+        assert_eq!(d.evidence, "extension .html");
+        assert_eq!(fmt(b"plain fragment\n", Some("htm")), Format::Html);
+        assert_eq!(fmt(b"plain fragment\n", Some("XHTML")), Format::Html);
+    }
+
+    #[test]
+    fn prose_that_merely_mentions_angle_brackets_stays_text() {
+        // Negative cases: the leading-tag heuristic must not swallow prose.
+        assert_eq!(fmt(b"a < b and c > d\n", None), Format::Text);
+        assert_eq!(fmt(b"i < n for the whole run\n", Some("txt")), Format::Text);
+        // An unclosed `<name` with no `>` in the prefix is not a tag.
+        assert_eq!(fmt(b"<unclosed is not markup", None), Format::Text);
+        // A bare `<` or `<=` opener is not a tag.
+        assert_eq!(fmt(b"<=\n", None), Format::Text);
+        assert_eq!(fmt(b"<\n", None), Format::Text);
+        // Non-HTML angle-bracket notation (C++ templates) is not a tag.
+        assert_eq!(fmt(b"std::vector<int> v;\n", Some("txt")), Format::Text);
     }
 
     #[test]
