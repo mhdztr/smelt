@@ -3,6 +3,7 @@
 //! stdout/stderr, environment variables, and process exit.
 
 mod cli;
+mod commands;
 mod engine;
 mod ui;
 
@@ -61,13 +62,9 @@ fn main() -> ExitCode {
 /// handling stays in one place and tests can reason about it.
 fn run(cli: &Cli, theme: &Theme) -> Result<(), SmeltError> {
     match &cli.command {
-        // Temporary in this commit: the command handlers (commands/) land
-        // in the next one.
-        Command::Convert(_) | Command::Info(_) | Command::Doctor | Command::Completions { .. } => {
-            let _ = theme;
-            Err(SmeltError::usage(
-                "no commands wired in this intermediate commit",
-            ))
-        }
+        Command::Convert(args) => commands::convert::run(args, theme, cli.color),
+        Command::Info(args) => commands::info::run(args, theme),
+        Command::Doctor => commands::doctor::run(theme),
+        Command::Completions { shell } => commands::completions::run(*shell),
     }
 }

@@ -2,9 +2,6 @@
 //! `smelt doctor` is the only caller (PERFORMANCE.md guardrail 1: never on
 //! the convert path).
 
-// Temporary: doctor.rs wires this up in the next commit.
-#![allow(dead_code)]
-
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};

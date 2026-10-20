@@ -4,10 +4,6 @@
 //! and AGENTS.md ("color only through the `Theme` struct"; call sites never
 //! apply styling unconditionally).
 
-// Temporary: cli.rs/main.rs/the commands wire this up over the next few
-// commits; the lint allow goes away with them.
-#![allow(dead_code)]
-
 use std::io::IsTerminal;
 
 use clap::ValueEnum;
@@ -57,21 +53,6 @@ impl Theme {
     /// Failure / missing mark: `✗` or `[fail]`.
     pub fn fail_mark(&self) -> &'static str {
         if self.unicode { "✗" } else { "[fail]" }
-    }
-
-    /// Bullet: `▪` or `*`.
-    pub fn bullet(&self) -> &'static str {
-        if self.unicode { "▪" } else { "*" }
-    }
-
-    /// List-ish separator: `»` or `>`.
-    pub fn sep(&self) -> &'static str {
-        if self.unicode { "»" } else { ">" }
-    }
-
-    /// Horizontal rule: `─` or `-`.
-    pub fn rule(&self) -> &'static str {
-        if self.unicode { "─" } else { "-" }
     }
 
     /// Box-drawing corners and edges (summary box), ASCII `+ - |` fallback.
@@ -272,9 +253,6 @@ mod tests {
         };
         assert_eq!(theme.ok_mark(), "[ok]");
         assert_eq!(theme.fail_mark(), "[fail]");
-        assert_eq!(theme.bullet(), "*");
-        assert_eq!(theme.sep(), ">");
-        assert_eq!(theme.rule(), "-");
         let b = theme.box_chars();
         assert_eq!((b.tl, b.h, b.v), ("+", "-", "|"));
         assert_eq!(theme.ok("done"), "[ok] done");
@@ -291,9 +269,6 @@ mod tests {
         };
         assert_eq!(theme.ok("done"), "✓ done");
         assert_eq!(theme.fail("nope"), "✗ nope");
-        assert_eq!(theme.bullet(), "▪");
-        assert_eq!(theme.sep(), "»");
-        assert_eq!(theme.rule(), "─");
         let b = theme.box_chars();
         assert_eq!(
             (b.tl, b.tr, b.bl, b.br, b.h, b.v),
