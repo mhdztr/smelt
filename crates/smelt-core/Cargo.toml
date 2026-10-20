@@ -8,6 +8,7 @@ repository.workspace = true
 
 [dependencies]
 smelt-detect = { path = "../smelt-detect" }
+comrak = "0.56"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
 
