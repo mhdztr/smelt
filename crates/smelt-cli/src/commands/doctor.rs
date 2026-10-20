@@ -31,11 +31,19 @@ pub fn run(theme: &Theme) -> Result<(), SmeltError> {
 }
 
 /// One doctor row. The mark goes through `Theme::ok`/`Theme::fail`
-/// (DESIGN.md: success green `✓`, failure red `✗`); the name is padded
-/// to `NAME_WIDTH`; `detail` arrives already styled by the caller.
+/// (DESIGN.md: success green `✓`, failure red `✗`); the mark is padded to
+/// `theme.mark_width()` so the name column starts at the same offset in
+/// both glyph modes (the ASCII fallbacks `[ok]` and `[fail]` differ in
+/// length); the name is padded to `NAME_WIDTH`; `detail` arrives already
+/// styled by the caller.
 fn row(theme: &Theme, found: bool, name: &str, detail: &str) -> String {
     let mark = if found { theme.ok("") } else { theme.fail("") };
-    format!("{mark}{name:name_width$}{detail}", name_width = NAME_WIDTH)
+    let pad = theme.mark_width().saturating_sub(mark.chars().count());
+    let spacing = " ".repeat(pad);
+    format!(
+        "{mark}{spacing}{name:name_width$}{detail}",
+        name_width = NAME_WIDTH
+    )
 }
 
 #[cfg(test)]
@@ -50,6 +58,7 @@ mod tests {
     fn row_layout_matches_docs_sample() {
         // docs/cli.md: `✓ soffice       /usr/bin/soffice (LibreOffice 26.8.1.1)`
         let t = theme(false, true);
+        // mark `✓ ` (2 cols) + pad 0 + name padded 14.
         assert_eq!(
             row(
                 &t,
@@ -82,14 +91,40 @@ mod tests {
 
     #[test]
     fn row_ascii_fallback() {
+        // ASCII marks differ in length (`[ok]` vs `[fail]`); both must be
+        // padded to the same column so the detail text lines up.
         let t = theme(false, false);
         assert_eq!(
             row(&t, true, "tesseract", "/usr/bin/tesseract"),
-            "[ok] tesseract     /usr/bin/tesseract"
+            "[ok]   tesseract     /usr/bin/tesseract"
         );
         assert_eq!(
             row(&t, false, "pandoc", "not found (optional)"),
             "[fail] pandoc        not found (optional)"
+        );
+    }
+
+    #[test]
+    fn row_ascii_detail_columns_align() {
+        // Regression: before the mark-column pad, `[ok]` (5) and `[fail]`
+        // (7) put the name/detail at different offsets. Both rows must now
+        // place the name at the same byte offset.
+        let t = theme(false, false);
+        let ok = row(&t, true, "tesseract", "/usr/bin/tesseract");
+        let fail = row(&t, false, "pandoc", "not found (optional)");
+        let name_col = |s: &str| s.find("tesseract").or_else(|| s.find("pandoc")).unwrap();
+        assert_eq!(name_col(&ok), name_col(&fail), "name column misaligned");
+        let detail_col = |s: &str| {
+            if let Some(i) = s.find("/usr/bin/tesseract") {
+                i
+            } else {
+                s.find("not found").unwrap()
+            }
+        };
+        assert_eq!(
+            detail_col(&ok),
+            detail_col(&fail),
+            "detail column misaligned"
         );
     }
 }

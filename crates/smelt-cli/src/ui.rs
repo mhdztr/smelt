@@ -55,6 +55,15 @@ impl Theme {
         if self.unicode { "✗" } else { "[fail]" }
     }
 
+    /// Total rendered width of a mark column (mark glyph plus its trailing
+    /// separating space), so rows align in both glyph modes. Unicode is
+    /// `"✓ "` / `"✗ "` (2 columns); the ASCII fallbacks are `"[ok] "` (5)
+    /// and `"[fail] "` (7), so the column is the wider of the two
+    /// (DESIGN.md glyph table, `doctor` sample).
+    pub fn mark_width(&self) -> usize {
+        if self.unicode { 2 } else { 7 }
+    }
+
     /// Box-drawing corners and edges (summary box), ASCII `+ - |` fallback.
     pub fn box_chars(&self) -> BoxChars {
         if self.unicode {
