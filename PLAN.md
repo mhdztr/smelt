@@ -1,7 +1,7 @@
 # PLAN.md -- smelt master plan
 
 `smelt` -- melt any document into any other. This is the full project plan;
-the current session implements **M0 only**.
+**M0 is complete** (see the milestone section for its acceptance record).
 
 ## Design thesis
 
@@ -26,7 +26,7 @@ the current session implements **M0 only**.
 
 ## Milestones
 
-### M0 -- foundation (this session)
+### M0 -- foundation (complete)
 
 Native Rust conversion for text formats, detection, CLI core.
 
@@ -101,7 +101,13 @@ write, engine, milestone, notes) and the lossy-case list.
 | html5ever silently repairs malformed HTML | Perceived data loss | Documented as lossy; fidelity reporting in a later milestone |
 | Startup budget creep from dependencies | Loses the ~5 ms thesis | Perf guardrail 3 in PERFORMANCE.md: every new dep justified against the budget |
 
-## Session scope reminder
+## M0 acceptance record
+
+Verified green on the M0 completion commit: `cargo fmt --check`,
+`cargo clippy --workspace --all-targets -- -D warnings`,
+`cargo test --workspace`, `cargo build --release`, every README quickstart
+command verbatim, and exit codes 0/1/2/3/4 as documented in
+[docs/cli.md](docs/cli.md).
 
 Not in M0: watch, diff, ocr, man subcommand, Lua filters, smelt-formats
 crate, any external-engine invocation, CI config, publishing to a remote.

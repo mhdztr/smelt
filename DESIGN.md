@@ -84,11 +84,12 @@ values left-aligned in the value column; box padded to content width.
 ASCII fallback uses `-`, `|`, `+` in the same layout.
 
 `smelt doctor` table (aligned columns, dim paths, optional-engine misses as
-`✗ ... (optional)` so they never read as errors):
+`✗ ... (optional)` so they never read as errors; the version banner is
+whatever the engine reports):
 
 ```
-✓ soffice       /usr/bin/soffice (LibreOffice 26.8.1.1)
-✓ tesseract     /usr/bin/tesseract (tesseract 5.5.0)
+✓ soffice       /usr/bin/soffice (<version banner>)
+✓ tesseract     /usr/bin/tesseract (<version banner>)
 ✗ pandoc        not found (optional)
 
 smelt M0 uses no external engines; these are reported for future milestones.

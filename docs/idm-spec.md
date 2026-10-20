@@ -28,8 +28,16 @@ IDM version is bumped. Consumers outside smelt should not persist it.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `title` | `Option<String>` | document title (HTML `<title>`, md YAML-less heuristic, metadata source per format) |
-| `author` | `Option<String>` | author (HTML `<meta name="author">` when present) |
+| `title` | `Option<String>` | document title (HTML `<title>`, md front matter `title`) |
+| `author` | `Option<String>` | author (HTML `<meta name="author">`, md front matter `author`) |
+
+Metadata channel per format (M0):
+
+| Format | Read | Write |
+| --- | --- | --- |
+| Markdown | `---` front matter block: `title` and `author` keys only; other keys and comments are dropped, not an error | front matter block emitted when `title` or `author` is set |
+| HTML | `<title>` and `<meta name="author">` when present | `<title>` and `<meta name="author">` when set |
+| Plain text | none -- the format has no metadata channel, so `Metadata` is always default on read | none -- `Metadata` drops silently (lossy, see FORMATS.md) |
 
 ### Block
 

@@ -29,7 +29,7 @@ From source (requires a stable Rust toolchain):
 git clone https://github.com/mhdztr/smelt
 cd smelt
 cargo build --release
-cargo install --path .          # installs the `smelt` binary
+cargo install --path crates/smelt-cli   # installs the `smelt` binary
 ```
 
 Arch Linux: AUR packages (`smelt`, `smelt-bin`, `smelt-git`) are planned;
@@ -42,7 +42,7 @@ Examples use `./target/release/smelt`; substitute `smelt` once installed.
 
 ```sh
 # Convert one file. The output format is inferred from the -o extension.
-./target/release/smelt notes.md -o notes.html
+./target/release/smelt convert notes.md -o notes.html
 
 # Explicit target format; stdin/stdout streaming with -
 printf '# Hi\n\n**bold**\n' | ./target/release/smelt convert - -t html

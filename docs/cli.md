@@ -61,6 +61,7 @@ inputs use a directory (batch mode).
 | --- | --- | --- | --- |
 | file | given | any | convert to `-t` |
 | file | absent | file path with known extension | infer format from `-o` extension |
+| file | absent | file path with unknown or no extension | **error, exit 2**: "pass -t/--to or -o/--output to choose the output format: cannot infer a format from `<path>`" |
 | file | absent | absent | **error, exit 2**: "pass -t/--to or -o/--output to choose the output format" |
 | `-` (stdin) | given | absent or `-` | convert stdin to stdout |
 | `-` (stdin) | given | file path | convert stdin to file |
@@ -71,6 +72,22 @@ inputs use a directory (batch mode).
 
 An inferred same-format pair (md -> md) is allowed and acts as a
 normalization pass.
+
+### Stdin source-format rule
+
+`-` has no extension to detect from, so the source format comes from the
+bytes alone. When that detection lands on plain `Text`, the **Markdown
+reader** is used: markdown is a superset of plain text, so piping
+`**bold**` or `# Hi` through a pipe converts properly instead of coming
+out verbatim.
+
+```
+$ printf '**bold**\n' | smelt convert - -t html
+<p><strong>bold</strong></p>
+
+$ printf '<h1>Hi</h1>\n' | smelt convert - -t md
+# Hi
+```
 
 ### Batch mode
 
@@ -127,11 +144,11 @@ Human output:
 
 ```
 path      README.md
-format    Markdown (guessed: extension)
-size      3.4 KB
-lines     120
-words     640
-bytes     3481
+format    Markdown (guessed: extension .md)
+size      3.1 KB
+lines     82
+words     411
+bytes     3079
 ```
 
 `--json` object: `{"path": ..., "format": ..., "confidence": ...,
@@ -148,15 +165,22 @@ smelt doctor
 
 Reports which optional external engines are on PATH (`soffice`,
 `tesseract`, `pandoc` in M0), each with a `--version` probe (5 s timeout,
-degrades to path-only when the probe fails or times out):
+degrades to path-only when the probe fails or times out). Engine paths and
+version banners are environment-specific; only the row shape and the
+trailing note are normative. The name column is 14 wide, and paths plus the
+version detail are dimmed:
 
 ```
-✓ soffice       /usr/bin/soffice (LibreOffice 26.8.1.1)
-✓ tesseract     /usr/bin/tesseract (tesseract 5.5.0)
+✓ soffice       /usr/bin/soffice (<version banner>)
+✓ tesseract     /usr/bin/tesseract (<version banner>)
 ✗ pandoc        not found (optional)
 
 smelt M0 uses no external engines; these are reported for future milestones.
 ```
+
+A `✓` row whose probe failed or timed out prints the bare path with no
+parenthesized version. Mark color follows DESIGN.md (success green, failure
+red) and is suppressed off a TTY or under `NO_COLOR`/`--color=never`.
 
 Always exits 0. Never runs on the convert path (PERFORMANCE.md guardrail 1).
 
@@ -166,8 +190,8 @@ Always exits 0. Never runs on the convert path (PERFORMANCE.md guardrail 1).
 smelt completions <SHELL>
 ```
 
-`SHELL` is one of `bash`, `zsh`, `fish`, `powershell`; prints a completion
-script to stdout (pipe into the shell's completion dir, e.g.
+`SHELL` is one of `bash`, `elvish`, `fish`, `powershell`, `zsh`; prints a
+completion script to stdout (pipe into the shell's completion dir, e.g.
 `smelt completions bash > /etc/bash_completion.d/smelt`).
 
 ## Planned commands (M1+, no code yet)

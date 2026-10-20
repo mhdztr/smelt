@@ -70,3 +70,20 @@ Magic bytes first; extension is only a tiebreak/disambiguator.
   job.
 - **Plain text input**: only paragraph structure is inferred; everything
   else (headings, lists) is intentionally not guessed.
+- **Soft and hard breaks** (`LineBreak`): both collapse to a single space.
+  IDM v0 has no break node, and a space roundtrips identically through HTML
+  and plain text (`formats/markdown.rs`).
+- **HTML whitespace collapse**: whitespace runs collapse to one space and
+  block edges trim, per HTML rendering semantics. Non-breaking space
+  (U+00A0) is content, not whitespace, and survives every converter
+  (`formats/mod.rs`).
+- **Front matter is a key subset**: only `title` and `author` reach
+  `Metadata`; every other key and all comments are dropped. Quoted scalars
+  are unescaped minimally (backslash escapes only) -- front matter is not
+  parsed as full YAML.
+- **Plain-text newline collapse**: a paragraph block's internal newlines
+  become spaces (blank-line splitting only); line structure inside a
+  paragraph is not preserved.
+- **Raw HTML blocks in Markdown**: parsed through the same fragment walker
+  as standalone HTML documents (`formats::html::fragment_blocks`), so raw
+  HTML in Markdown inherits HTML's repair and whitespace rules.
