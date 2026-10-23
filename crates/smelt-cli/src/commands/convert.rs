@@ -235,9 +235,6 @@ fn run_batch(
             out_dir.display()
         )));
     }
-    std::fs::create_dir_all(&out_dir)
-        .map_err(|e| SmeltError::new(1, format!("failed: create {} ({e})", out_dir.display())))?;
-
     let mut files = Vec::new();
     let entries = std::fs::read_dir(input)
         .map_err(|e| SmeltError::new(1, format!("failed: read {} ({e})", input.display())))?;
@@ -256,6 +253,12 @@ fn run_batch(
     // name. The writes run in parallel under rayon, so silently continuing
     // would leave a nondeterministic winner and exit 0 (docs/cli.md: exit 2).
     check_batch_collisions(&files, &out_dir, target)?;
+
+    // Only create the output directory after the collision check: a refused
+    // batch must leave nothing behind (docs/cli.md: "before anything is
+    // written").
+    std::fs::create_dir_all(&out_dir)
+        .map_err(|e| SmeltError::new(1, format!("failed: create {} ({e})", out_dir.display())))?;
 
     let use_bars = !args.quiet && color != ColorChoice::Never && std::io::stderr().is_terminal();
     let multi = indicatif::MultiProgress::new();
@@ -383,11 +386,22 @@ fn refuse_in_place(input: &Path, out_path: &Path) -> Result<(), SmeltError> {
 }
 
 /// Whether two paths name the same file. Exact path equality catches the
-/// extension-derived case (`a.md` -> `a.md`); canonicalization catches the
-/// spelling variants (`a.md` vs `./a.md`) when both already exist.
+/// extension-derived case (`a.md` -> `a.md`). When both paths exist, Unix
+/// compares `(st_dev, st_ino)`: canonicalization resolves symlinks and `.`
+/// spellings but not hardlink aliases, and a hardlinked output would
+/// truncate the shared inode and destroy the source. Non-Unix (and a missing
+/// output, which cannot share an existing inode yet) falls back to
+/// canonicalization for the spelling variants (`a.md` vs `./a.md`).
 fn paths_are_same(a: &Path, b: &Path) -> bool {
     if a == b {
         return true;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if let (Ok(meta_a), Ok(meta_b)) = (std::fs::metadata(a), std::fs::metadata(b)) {
+            return meta_a.dev() == meta_b.dev() && meta_a.ino() == meta_b.ino();
+        }
     }
     match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
         (Ok(a), Ok(b)) => a == b,

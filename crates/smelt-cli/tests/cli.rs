@@ -525,6 +525,89 @@ fn batch_in_place_conversion_is_refused_before_writing() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn hardlinked_output_is_refused_for_single_and_batch() {
+    // Regression: the guard compared paths and canonical forms only, so a
+    // hardlink alias (same inode, different path) passed and the output
+    // write truncated the shared inode, destroying the source.
+    let dir = TempDir::new("hardlink");
+    let input = dir.file("a.html", "<p class=\"x\">hi</p>\n");
+    let alias = dir.path().join("hard.html");
+    fs::hard_link(&input, &alias).expect("hardlink created");
+    let before = fs::read_to_string(&input).expect("fixture read");
+
+    let single = run([
+        "convert",
+        input.to_str().unwrap(),
+        "-t",
+        "html",
+        "-o",
+        alias.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&single), 2, "stderr: {}", stderr_of(&single));
+    let err = stderr_of(&single);
+    assert!(err.contains("in place"), "message says in place: {err}");
+    assert_eq!(
+        fs::read_to_string(&input).expect("fixture still readable"),
+        before,
+        "the hardlinked source must be untouched"
+    );
+
+    // Batch goes through the same helper: an output directory holding a
+    // hardlink to an input must refuse the whole run.
+    let out_dir = dir.path().join("out");
+    fs::create_dir_all(&out_dir).expect("out dir created");
+    fs::hard_link(&input, out_dir.join("a.html")).expect("hardlinked batch output created");
+
+    let batch = run([
+        "convert",
+        dir.path().to_str().unwrap(),
+        "-t",
+        "html",
+        "-o",
+        out_dir.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&batch), 2, "stderr: {}", stderr_of(&batch));
+    let err = stderr_of(&batch);
+    assert!(err.contains("in place"), "batch says in place: {err}");
+    assert_eq!(
+        fs::read_to_string(&input).expect("fixture still readable"),
+        before,
+        "the hardlinked source must survive a refused batch"
+    );
+}
+
+#[test]
+fn batch_collision_refusal_writes_nothing() {
+    // docs/cli.md: collisions are refused "before anything is written". The
+    // output directory used to be created before the collision check.
+    let dir = TempDir::new("batch-collision");
+    dir.file("notes.md", "# notes\n");
+    dir.file("notes.html", "<p>notes</p>\n");
+    let out_dir = dir.path().join("newout");
+
+    let out = run([
+        "convert",
+        dir.path().to_str().unwrap(),
+        "-t",
+        "txt",
+        "-o",
+        out_dir.to_str().unwrap(),
+    ]);
+
+    assert_eq!(code(&out), 2, "stderr: {}", stderr_of(&out));
+    assert!(
+        stderr_of(&out).contains("collision"),
+        "stderr: {}",
+        stderr_of(&out)
+    );
+    assert!(
+        !out_dir.exists(),
+        "a refused batch must not create the output directory"
+    );
+}
+
 #[test]
 fn info_reports_txt_with_a_leading_tag_as_text_not_html() {
     // Regression: `<error> disk full` in a `.txt` was classified as HTML by
