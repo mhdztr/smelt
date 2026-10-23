@@ -13,6 +13,7 @@ use smelt_detect::{detect, detect_path};
 
 use crate::SmeltError;
 use crate::cli::ConvertArgs;
+use crate::commands::{io_error, io_reason};
 use crate::ui::{ColorChoice, Theme, human_bytes, human_duration};
 
 pub fn run(args: &ConvertArgs, theme: &Theme, color: ColorChoice) -> Result<(), SmeltError> {
@@ -35,30 +36,6 @@ pub fn run(args: &ConvertArgs, theme: &Theme, color: ColorChoice) -> Result<(), 
         Err(e) => Err(io_error(&e, &input)),
         Ok(meta) if meta.is_dir() => run_batch(args, theme, color, &input),
         Ok(_) => run_file(args, theme, &input),
-    }
-}
-
-/// Map an I/O failure on an input path to a documented exit code
-/// (docs/cli.md). Only `NotFound` is "missing input" (exit 4); a permission
-/// error is actionable in its own right and must not claim the file does not
-/// exist, so it reports the OS reason at exit 1.
-fn io_error(err: &std::io::Error, path: &Path) -> SmeltError {
-    if err.kind() == std::io::ErrorKind::NotFound {
-        SmeltError::missing(format!("no such file: {}", path.display()))
-    } else {
-        SmeltError::new(
-            1,
-            format!("cannot read {}: {}", path.display(), io_reason(err)),
-        )
-    }
-}
-
-/// A short, human-readable reason for an I/O error (no Debug dump).
-fn io_reason(err: &std::io::Error) -> String {
-    match err.kind() {
-        std::io::ErrorKind::PermissionDenied => "permission denied".to_owned(),
-        std::io::ErrorKind::IsADirectory => "path is a directory".to_owned(),
-        _ => err.to_string(),
     }
 }
 

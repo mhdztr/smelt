@@ -9,6 +9,7 @@ use smelt_detect::{Confidence, detect, detect_path};
 
 use crate::SmeltError;
 use crate::cli::InfoArgs;
+use crate::commands::io_error;
 use crate::ui::{Theme, human_bytes};
 
 /// Label column width from docs/cli.md's human-output sample.
@@ -48,8 +49,7 @@ fn input_source(file: Option<&Path>, stdin_is_terminal: bool) -> InfoSource<'_> 
 }
 
 fn run_file(args: &InfoArgs, theme: &Theme, path: &Path) -> Result<(), SmeltError> {
-    let detection = detect_path(path)
-        .map_err(|_| SmeltError::missing(format!("no such file: {}", path.display())))?;
+    let detection = detect_path(path).map_err(|e| io_error(&e, path))?;
 
     let size_bytes = std::fs::metadata(path).map(|m| m.len()).ok();
     let stats = text_stats(path, detection.format);
