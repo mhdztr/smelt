@@ -7,6 +7,8 @@ arch=('x86_64')
 url="https://github.com/mhdztr/smelt"
 license=('MIT')
 depends=('gcc-libs' 'glibc')
+provides=('smelt')
+conflicts=('smelt')
 options=('!strip')
 # Expected release asset name for the v$pkgver GitHub release
 # (smelt-x86_64-unknown-linux-gnu.tar.gz, containing the stripped `smelt`

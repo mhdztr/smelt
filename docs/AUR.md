@@ -97,22 +97,24 @@ not a publish). Verified facts:
 
 | Property | `smelt` | `smelt-bin` | `smelt-git` |
 | --- | --- | --- | --- |
-| `pkgver` | `0.1.0` | `0.1.0` | `0.1.0.r0.g0000000` (from `pkgver()`) |
+| `pkgver` | `0.1.0` | `0.1.0` | `0.1.0.r0.g<commit>` (from `pkgver()`; an untagged repo uses the fallback, a tagged repo strips the leading `v`) |
 | `pkgrel` | `1` | `1` | `1` |
 | `url` | `https://github.com/mhdztr/smelt` | same | same |
 | `license` | `MIT` | `MIT` | `MIT` |
 | `arch` | `x86_64`, `aarch64` | `x86_64` | `x86_64`, `aarch64` |
 | `depends` | `gcc-libs`, `glibc` | `gcc-libs`, `glibc` | `gcc-libs`, `glibc` |
 | `makedepends` | `cargo` | (none) | `git`, `cargo` |
-| extra | -- | `options=('!strip')` | `provides=('smelt')`, `conflicts=('smelt')` |
+| extra | -- | `provides=('smelt')`, `conflicts=('smelt')`, `options=('!strip')` | `provides=('smelt')`, `conflicts=('smelt')` |
 | source | `smelt-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz` | `smelt-bin-$pkgver.tar.gz::$url/releases/download/v$pkgver/smelt-x86_64-unknown-linux-gnu.tar.gz` | `smelt-git::git+https://github.com/mhdztr/smelt.git` |
 | checksums | 64-zero placeholder | 64-zero placeholder | `sha256sums=('SKIP')` |
 
 All three share the same `url`, `license=('MIT')`, `pkgver=0.1.0` and
 `pkgrel=1`. The `gcc-libs`/`glibc` depends are correct for the current
 dynamically-linked Linux build (see the linking note at the top of this
-file); `smelt-bin`'s `options=('!strip')` preserves the checksum of the
-already-stripped release asset. `smelt` and `smelt-bin` carry 64-zero
+file); `smelt-bin`'s `options=('!strip')` keeps the already-stripped release
+asset byte-identical inside the package (checksums are verified against the
+downloaded tarball before extraction, so the option has no bearing on source
+integrity). `smelt` and `smelt-bin` carry 64-zero
 placeholder checksums (clearly marked in comments) that
 `scripts/aur-update.sh` replaces with the real sha256 of the downloaded
 tarball; `smelt-git` uses `sha256sums=('SKIP')` because it tracks a VCS
@@ -141,7 +143,8 @@ none of which exist today:
 Until 1 and 2 are satisfied, local `makepkg -s` on `smelt`/`smelt-bin` can
 only be expected to fail at source retrieval / integrity, not to build.
 `smelt-git` is the only package whose source resolves without a release
-(it clones HEAD), so it is the one that can be built today.
+(it clones HEAD), so it is the one that can be built today; its `pkgver()`
+falls back to `0.1.0.r0.g<commit>` when the clone carries no tag.
 
 ## Placeholder checksums
 
