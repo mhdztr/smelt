@@ -56,7 +56,16 @@ if [[ -n "$tarball_url" ]]; then
   fi
 fi
 
-makepkg --printsrcinfo > .SRCINFO
+# Generate into a temp file and only replace the tracked .SRCINFO after
+# makepkg succeeds: under `set -e` a redirect into .SRCINFO truncates the
+# committed file before the failure is visible.
+srcinfo_tmp="$(mktemp .SRCINFO.XXXXXX)"
+if ! makepkg --printsrcinfo > "$srcinfo_tmp"; then
+  rm -f "$srcinfo_tmp"
+  echo "error: makepkg --printsrcinfo failed; .SRCINFO left unchanged" >&2
+  exit 1
+fi
+mv "$srcinfo_tmp" .SRCINFO
 echo "updated $dir (pkgver + .SRCINFO)."
 echo "next: review the diff, copy PKGBUILD and .SRCINFO into the AUR clone," >&2
 echo "commit (message: 'up ${version:-HEAD}') and push." >&2
