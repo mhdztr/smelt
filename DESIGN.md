@@ -125,7 +125,7 @@ with `null` for fields that do not apply.
 | --- | --- |
 | 0 | success |
 | 1 | partial failure (batch: at least one ok, at least one failed) |
-| 2 | usage error (bad flags, missing `-t` where required) |
+| 2 | usage error (bad flags, missing `-t` where required, output path equals input path) |
 | 3 | unsupported conversion (no reader/writer for a format) |
 | 4 | missing input path |
 

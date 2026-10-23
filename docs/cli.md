@@ -32,7 +32,7 @@ Exit codes (documented, stable):
 | --- | --- |
 | 0 | success |
 | 1 | partial failure (batch: at least one succeeded, at least one failed); also input read errors other than "not found" (e.g. permission denied) |
-| 2 | usage error (bad flags, missing `-t` where required, batch output-name collision) |
+| 2 | usage error (bad flags, missing `-t` where required, batch output-name collision, output path equals the input path) |
 | 3 | unsupported conversion (no reader or writer for a format) |
 | 4 | missing input path (the path does not exist) |
 
@@ -92,7 +92,21 @@ inputs use a directory (batch mode).
 | directory | absent | any | **error, exit 2**: directory input requires `-t` |
 
 An inferred same-format pair (md -> md) is allowed and acts as a
-normalization pass.
+normalization pass only when the output path differs from the input. A
+resolved output path that equals the input path is refused with **exit 2**
+before anything is written, because rewriting the source through the IDM
+drops what the model does not carry (classes, inline styles, original
+structure):
+
+```
+$ smelt convert a.html -t html
+✗ refusing to overwrite the input file in place: a.html; pass -o with a distinct output path or a different -t
+
+$ smelt convert a.html -t html -o normalized.html    # allowed
+```
+
+There is no `--force` in M0; `-o` with a distinct path (or a different `-t`)
+is the explicit opt-in.
 
 ### Plain-text source-format rule (stdin and files)
 
@@ -147,6 +161,10 @@ to `notes.txt`) would map to the **same** output file. Because the writes
 run in parallel, continuing would leave a nondeterministic winner and exit
 0, silently discarding one result. This is refused before anything is
 written: **error, exit 2**, naming both inputs and the shared output path.
+The same check refuses a batch output that would overwrite its own input
+(for example `smelt convert docs/ -t md -o docs/`): every one of those
+outputs is resolved to the input path, so the run exits 2 before writing
+anything.
 
 ```
 $ smelt convert docs/ -t txt -o out

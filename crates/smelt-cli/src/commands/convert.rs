@@ -148,6 +148,10 @@ fn source_format(detected: Format) -> Format {
 /// path with the target extension.
 fn run_file(args: &ConvertArgs, theme: &Theme, input: &Path) -> Result<(), SmeltError> {
     let (target, out_path) = file_target(args, input)?;
+    let to_stdout = args.output.as_deref() == Some(Path::new("-"));
+    if !to_stdout {
+        refuse_in_place(input, &out_path)?;
+    }
 
     let detection = detect_path(input).map_err(|e| io_error(&e, input))?;
     // Same source-format resolution as stdin (docs/cli.md stdin rule): plain
@@ -181,7 +185,6 @@ fn run_file(args: &ConvertArgs, theme: &Theme, input: &Path) -> Result<(), Smelt
     })?;
     let ms = started.elapsed().as_millis();
 
-    let to_stdout = args.output.as_deref() == Some(Path::new("-"));
     if to_stdout {
         let mut stdout = std::io::stdout();
         stdout
@@ -362,6 +365,36 @@ impl FileOutcome {
     }
 }
 
+/// Refuse a conversion whose resolved output is the input itself. Rewriting
+/// the source through the IDM is destructive (classes, styles, and structure
+/// the model does not carry are lost) and used to happen silently at exit 0
+/// for `convert a.html -t html` and for batch output into the input directory
+/// (docs/cli.md). There is no `--force` in M0: pass `-o` with a distinct path
+/// or a different `-t`.
+fn refuse_in_place(input: &Path, out_path: &Path) -> Result<(), SmeltError> {
+    if paths_are_same(input, out_path) {
+        return Err(SmeltError::usage(format!(
+            "refusing to overwrite the input file in place: {}; \
+             pass -o with a distinct output path or a different -t",
+            input.display()
+        )));
+    }
+    Ok(())
+}
+
+/// Whether two paths name the same file. Exact path equality catches the
+/// extension-derived case (`a.md` -> `a.md`); canonicalization catches the
+/// spelling variants (`a.md` vs `./a.md`) when both already exist.
+fn paths_are_same(a: &Path, b: &Path) -> bool {
+    if a == b {
+        return true;
+    }
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
+}
+
 /// The output path for one batch input: the output directory plus the input
 /// stem and the target extension. Single source of truth for the mapping
 /// [`check_batch_collisions`] validates.
@@ -375,7 +408,10 @@ fn batch_out_path(path: &Path, out_dir: &Path, target: Format) -> PathBuf {
 
 /// Refuse a batch whose inputs would map to the same output file (exit 2,
 /// before anything is written). Without this the parallel rayon writes race
-/// and one input silently overwrites the other's output.
+/// and one input silently overwrites the other's output. Also refuses an
+/// output path that resolves to its own input (batch into the source
+/// directory with the source extension), for the same reason the single-file
+/// path does.
 fn check_batch_collisions(
     files: &[PathBuf],
     out_dir: &Path,
@@ -384,6 +420,7 @@ fn check_batch_collisions(
     let mut seen: std::collections::BTreeMap<PathBuf, &Path> = std::collections::BTreeMap::new();
     for path in files {
         let out_path = batch_out_path(path, out_dir, target);
+        refuse_in_place(path, &out_path)?;
         if let Some(previous) = seen.insert(out_path.clone(), path.as_path()) {
             return Err(SmeltError::usage(format!(
                 "batch output collision: {} and {} both map to {}; \
