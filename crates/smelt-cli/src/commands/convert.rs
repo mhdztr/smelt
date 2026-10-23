@@ -448,9 +448,14 @@ fn convert_batch_file(path: &Path, out_dir: &Path, target: Format) -> FileOutcom
             };
         }
     };
-    if reader_for(detection.format).is_none() {
+    // Same source-format resolution as stdin and single-file conversion
+    // (docs/cli.md): detection landing on plain `Text` is read through the
+    // Markdown reader. Batch files are a channel too, so this must not use
+    // the raw detection result (it would emit literal Markdown inside HTML).
+    let source = source_format(detection.format);
+    if reader_for(source).is_none() {
         return FileOutcome::Failed {
-            message: ReadError::Unsupported(detection.format.name().to_lowercase()).to_string(),
+            message: ReadError::Unsupported(source.name().to_lowercase()).to_string(),
             unsupported: true,
         };
     };
@@ -472,7 +477,7 @@ fn convert_batch_file(path: &Path, out_dir: &Path, target: Format) -> FileOutcom
     };
 
     let started = Instant::now();
-    let doc = match read_document(detection.format, &bytes) {
+    let doc = match read_document(source, &bytes) {
         Ok(d) => d,
         Err(e) => {
             return FileOutcome::Failed {
