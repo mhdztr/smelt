@@ -59,14 +59,20 @@ impl SmeltError {
 /// libc ABI for `signal(2)` is stable across the platforms this ships on.
 /// No-op on non-Unix targets.
 #[cfg(unix)]
+type SignalHandler = Option<extern "C" fn(i32)>;
+
+#[cfg(unix)]
+unsafe extern "C" {
+    /// C `signal(2)`: returns the previous handler.
+    fn signal(signum: i32, handler: SignalHandler) -> SignalHandler;
+}
+
+#[cfg(unix)]
 fn restore_sigpipe_default() {
-    unsafe extern "C" {
-        fn signal(signum: i32, handler: usize) -> usize;
-    }
     /// `SIGPIPE` (see `signal(7)`); the same value on Linux and the BSDs.
     const SIGPIPE: i32 = 13;
     /// `SIG_DFL` -- the default disposition.
-    const SIG_DFL: usize = 0;
+    const SIG_DFL: SignalHandler = None;
     // SAFETY: `signal` with `SIG_DFL` is async-signal-safe and side-effect
     // free; it merely resets a handler we never want installed. The return
     // value (the previous handler) is intentionally discarded.
