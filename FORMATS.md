@@ -56,7 +56,10 @@ Magic bytes first; extension is only a tiebreak/disambiguator.
    `<span>`, ... or a stray closer) -> HTML guessed. The tag test requires
    `<` + optional `/` + an ASCII letter and a closing `>` in the scanned
    head, so prose (`a < b`, an unclosed `<name`, C++ `vector<int>`) stays
-   text.
+   text. **Extension guard:** a `.txt`/`.text` file only takes the HTML
+   branch when a structural marker (`<!doctype`, `<html`, `<head`, `<body`)
+   is present; loose leading tags there stay plain text, so a log line such
+   as `<error> disk full` is not mistaken for a document.
 5. Valid UTF-8 in the read prefix -> text family, by extension:
    `.md`/`.markdown`/`.mdown` -> Markdown; `.csv` -> CSV; `.tsv` -> TSV;
    `.html`/`.htm`/`.xhtml` -> HTML (a file with no markup in its prefix is
@@ -79,6 +82,14 @@ Magic bytes first; extension is only a tiebreak/disambiguator.
 - **RTL text**: content is preserved exactly (including combining marks) but
   M0 performs no shaping or bidi reordering -- rendering is the consumer's
   job.
+- **Leading tag-like lines in `.txt`**: a `.txt` file is sometimes read
+  through the Markdown reader (the plain-text source rule in `docs/cli.md`),
+  and Markdown parses a line that opens with an HTML tag as a raw HTML block.
+  A log line such as `<error> disk full` therefore loses the `<error>` marker
+  when converted. Detection no longer misclassifies the file as HTML, but the
+  content of a tag-like leading line is still not preserved verbatim; use a
+  non-Markdown `.txt` consumer or remove the angle brackets when the marker
+  must survive.
 - **Plain text input**: only paragraph structure is inferred; everything
   else (headings, lists) is intentionally not guessed.
 - **Soft and hard breaks** (`LineBreak`): both collapse to a single space.

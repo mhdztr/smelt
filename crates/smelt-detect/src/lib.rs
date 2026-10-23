@@ -159,7 +159,7 @@ pub fn detect(bytes: &[u8], ext: Option<&str>) -> Detection {
         return d;
     }
 
-    if let Some(d) = detect_html(bytes) {
+    if let Some(d) = detect_html(bytes, ext) {
         return d;
     }
 
@@ -270,7 +270,7 @@ fn detect_rtf(bytes: &[u8]) -> Option<Detection> {
     None
 }
 
-fn detect_html(bytes: &[u8]) -> Option<Detection> {
+fn detect_html(bytes: &[u8], ext: Option<&str>) -> Option<Detection> {
     let start = skip_bom_ws(bytes);
     let rest = bytes.get(start..)?;
     // Skip an XML declaration ("<?xml ... ?>") if present (XHTML, EPUB spine).
@@ -282,14 +282,32 @@ fn detect_html(bytes: &[u8]) -> Option<Detection> {
     };
     let rest = rest.get(skip_bom_ws(rest)..)?;
 
+    // A `.txt`/`.text` file is plain text by extension. Loose tag heuristics
+    // are not allowed to steal it (a log line like `<error> disk full` is not
+    // an HTML document); only a structural HTML marker overrides the
+    // extension. Files with `.html`/`.htm`/`.xhtml` or no extension keep the
+    // full heuristic, so bare fragments still detect as HTML.
+    let plain_text_ext = matches!(
+        ext.map(|e| e.to_ascii_lowercase()).as_deref(),
+        Some("txt" | "text")
+    );
+
     // Scan the first KiB case-insensitively for structural HTML tags.
     let scan_len = rest.len().min(1024);
     let head = &rest[..scan_len];
     let lower: Vec<u8> = head.iter().map(|b| b.to_ascii_lowercase()).collect();
 
     // A leading comment/`<html>`-less doctype-less document still starts with
-    // a tag; that is the strongest signal short of the doctype.
-    if starts_with_tag(&lower, b"<!--") || starts_with_tag(&lower, b"<!doctype") {
+    // a tag; that is the strongest signal short of the doctype. A bare
+    // comment does not override a `.txt` extension, though.
+    if !plain_text_ext && starts_with_tag(&lower, b"<!--") {
+        return Some(Detection {
+            format: Format::Html,
+            confidence: Confidence::Certain,
+            evidence: "tag scan: <!-- comment -->",
+        });
+    }
+    if starts_with_tag(&lower, b"<!doctype") {
         return Some(Detection {
             format: Format::Html,
             confidence: Confidence::Certain,
@@ -311,6 +329,9 @@ fn detect_html(bytes: &[u8]) -> Option<Detection> {
                 evidence: "tag scan: structural HTML tag",
             });
         }
+    }
+    if plain_text_ext {
+        return None;
     }
     // A fragment or full document that opens with any other tag (`<p>`,
     // `<div>`, `<table>`, `<span>`, ...) is still HTML. This is the common
@@ -581,6 +602,69 @@ mod tests {
         assert_eq!(d.evidence, "extension .html");
         assert_eq!(fmt(b"plain fragment\n", Some("htm")), Format::Html);
         assert_eq!(fmt(b"plain fragment\n", Some("XHTML")), Format::Html);
+    }
+
+    #[test]
+    fn txt_extension_prefers_the_text_family_over_loose_tags() {
+        // Regression: a log line like `<error> disk full` in a `.txt` file was
+        // detected as HTML by the leading-tag heuristic and read by the HTML
+        // reader, which silently dropped `<error>` and emitted only `disk
+        // full`. `.txt` is plain text unless a structural marker says
+        // otherwise.
+        for bytes in [
+            &b"<error> disk full\n"[..],
+            b"<p>not html by extension</p>\n",
+            b"</div>\n",
+            b"<span class=\"x\">text</span>\n",
+        ] {
+            let d = detect(bytes, Some("txt"));
+            assert_eq!(
+                d.format,
+                Format::Text,
+                "bytes: {:?}",
+                String::from_utf8_lossy(bytes)
+            );
+            assert_eq!(d.confidence, Confidence::Guessed);
+        }
+        assert_eq!(fmt(b"<error> disk full\n", Some("TEXT")), Format::Text);
+        // A bare comment is not structural enough to override `.txt`.
+        assert_eq!(
+            fmt(b"<!-- a note -->\n<error>\n", Some("txt")),
+            Format::Text
+        );
+    }
+
+    #[test]
+    fn txt_with_a_structural_html_marker_is_html() {
+        assert_eq!(fmt(b"<!doctype html><p>x</p>\n", Some("txt")), Format::Html);
+        assert_eq!(
+            fmt(b"<html><body>x</body></html>\n", Some("txt")),
+            Format::Html
+        );
+        assert_eq!(
+            fmt(b"<head><title>x</title></head>\n", Some("txt")),
+            Format::Html
+        );
+        assert_eq!(fmt(b"<body>x</body>\n", Some("txt")), Format::Html);
+        // XML declaration followed by a structural marker still decides.
+        let d = detect(
+            b"<?xml version=\"1.0\"?>\n<!DOCTYPE html><html><body>x</body></html>",
+            Some("txt"),
+        );
+        assert_eq!(d.format, Format::Html);
+        assert_eq!(d.confidence, Confidence::Certain);
+    }
+
+    #[test]
+    fn bare_paragraph_html_file_is_still_html() {
+        // The `.txt` rule must not weaken detection for `.html`: a fragment
+        // with no structural tags is still HTML by the leading-tag scan.
+        let d = detect(b"<p>Hello</p>\n", Some("html"));
+        assert_eq!(d.format, Format::Html);
+        assert_eq!(d.confidence, Confidence::Guessed);
+        assert_eq!(d.evidence, "tag scan: leading HTML tag");
+        // No extension (stdin) keeps the same heuristic.
+        assert_eq!(fmt(b"<p>Hello</p>\n", None), Format::Html);
     }
 
     #[test]
