@@ -27,7 +27,7 @@ color unconditionally.
 | horizontal rule / line | `─` | `-` |
 | box corners/edges | `┌ ┐ └ ┘ │` | `+`, `-`, `\|` |
 
-Unicode mode (`ui::unicode_ok()`) requires ALL of:
+Unicode mode (`ui::unicode_mode()`) requires ALL of:
 
 - stdout or stderr is a terminal (`std::io::IsTerminal`),
 - `TERM` is not `linux` (the Linux console has poor Unicode coverage),
@@ -39,7 +39,7 @@ Unicode mode (`ui::unicode_ok()`) requires ALL of:
 
 ## Color
 
-- Library: owo-colors, applied only through `Theme { on: bool, .. }`.
+- Library: owo-colors, applied only through `Theme { color: bool, unicode: bool }`.
 - Precedence, highest first: `--color=never` > `NO_COLOR` (any value,
   including empty) > `--color=always` > TTY autodetect.
 - `CLICOLOR_FORCE` is **not** supported (documented in docs/cli.md).
@@ -112,11 +112,11 @@ with `null` for fields that do not apply.
 
 ## Progress policy
 
-- TTY stderr: `indicatif::MultiProgress` with one bar per file, `[n/N] name`
-  style.
+- TTY stderr: `indicatif::MultiProgress` with one bar per file; each bar's
+  message is `converting <name>`.
 - Non-TTY stderr (pipes, logs): plain lines,
-  `converting a.md -> a.html ... ok` / `... failed (reason)`. Plain lines
-  are also used under `--color=never`.
+  `converting a.md -> a.html ... ok (4 ms)` / `... failed (reason)`. Plain
+  lines are also used under `--color=never`.
 - `-q` suppresses progress and success lines; errors always print.
 
 ## Exit codes

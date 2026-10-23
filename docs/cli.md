@@ -227,9 +227,11 @@ bytes     3079
 
 `--json` object: `{"path": ..., "format": ..., "confidence": ...,
 "evidence": ..., "size_bytes": ..., "lines": ..., "words": ...,
-"bytes": ...}` -- `lines`/`words`/`bytes` are `null` for non-text formats,
-`size_bytes` is `null` for stdin (unknown until read). Exit codes: 0 ok,
-4 missing file.
+"bytes": ...}` -- `lines`/`words`/`bytes` are `null` for formats without a
+native reader (for example PDF, DOCX, and CSV), `size_bytes` is `null` for
+stdin (unknown until read). Exit codes: 0 ok, 1 input exists but cannot be
+read (permission denied, directory), 4 missing file (the path does not
+exist).
 
 ## `smelt doctor`
 
