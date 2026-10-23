@@ -1,6 +1,6 @@
 pkgbase = smelt-git
 	pkgdesc = Advanced document converter CLI - melt any document into any other (git HEAD)
-	pkgver = 0.1.0.r0.g0000000
+	pkgver = 0.1.0.r0.g00000000
 	pkgrel = 1
 	url = https://github.com/mhdztr/smelt
 	arch = x86_64
