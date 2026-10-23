@@ -46,7 +46,40 @@ impl SmeltError {
     }
 }
 
+/// Restore the default `SIGPIPE` disposition on Unix.
+///
+/// Rust's runtime sets `SIGPIPE` to `SIG_IGN` before `main`, so a write to a
+/// closed pipe (for example `smelt doctor | head -1`) turns into an `EPIPE`
+/// `io::Error`, and the `println!` that hit it panics with a Rust dump -- a
+/// violation of the AGENTS.md contract ("never a Debug dump", "no `panic!`").
+/// Resetting `SIGPIPE` to `SIG_DFL` makes the process die quietly on the
+/// signal, exactly like `cat`, `grep`, and every other Unix filter.
+///
+/// Declared inline as `extern "C"` to keep `smelt-cli` dependency-free; the
+/// libc ABI for `signal(2)` is stable across the platforms this ships on.
+/// No-op on non-Unix targets.
+#[cfg(unix)]
+fn restore_sigpipe_default() {
+    unsafe extern "C" {
+        fn signal(signum: i32, handler: usize) -> usize;
+    }
+    /// `SIGPIPE` (see `signal(7)`); the same value on Linux and the BSDs.
+    const SIGPIPE: i32 = 13;
+    /// `SIG_DFL` -- the default disposition.
+    const SIG_DFL: usize = 0;
+    // SAFETY: `signal` with `SIG_DFL` is async-signal-safe and side-effect
+    // free; it merely resets a handler we never want installed. The return
+    // value (the previous handler) is intentionally discarded.
+    unsafe {
+        signal(SIGPIPE, SIG_DFL);
+    }
+}
+
+#[cfg(not(unix))]
+fn restore_sigpipe_default() {}
+
 fn main() -> ExitCode {
+    restore_sigpipe_default();
     let cli = Cli::parse();
     let theme = Theme::new(cli.color);
     match run(&cli, &theme) {

@@ -48,6 +48,15 @@ $ smelt convert /nonexistent.md -t html
 ✗ no such file: /nonexistent.md                (exit 4)
 ```
 
+### Pipes
+
+`smelt` writes to stdout/stderr and exits quietly when the reader end of a
+pipe closes early. `smelt doctor | head -1` terminates with no error output;
+it never prints a panic dump or a broken-pipe message. This is the standard
+Unix filter behavior (the process restores the default `SIGPIPE`
+disposition at startup), so `smelt` composes safely with `head`, `grep`,
+`less`, and shell pipelines.
+
 ## `smelt convert` (alias `c`)
 
 ```

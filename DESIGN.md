@@ -131,3 +131,12 @@ with `null` for fields that do not apply.
 
 Implementation: `main` returns `ExitCode` derived from a `SmeltError`
 carrying the code; user input never triggers a panic.
+
+## Pipes
+
+A closed reader (for example `smelt doctor | head -1`) must not produce a
+panic dump or a broken-pipe message. The process restores the default
+`SIGPIPE` disposition at startup (`main::restore_sigpipe_default`), so it
+dies quietly on the signal like `cat` or `grep`. Output is written with
+`println!`/`eprintln!` and is never routed through a custom error path on
+`EPIPE`.

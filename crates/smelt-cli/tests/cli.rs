@@ -722,3 +722,79 @@ fn convert_with_no_argument_on_a_terminal_exits_2() {
     assert!(!text.contains("panicked"), "must not panic: {text}");
     assert!(text.contains("missing input"), "message: {text}");
 }
+
+// ---------------------------------------------------------------------------
+// Broken-pipe behavior
+//
+// Rust ignores SIGPIPE by default, so writing to a closed pipe raises EPIPE
+// and `println!` panics with a Rust dump. `restore_sigpipe_default()` in
+// main.rs resets the disposition so smelt dies quietly, like every Unix
+// filter. These tests close the read end early and assert no panic escapes.
+// ---------------------------------------------------------------------------
+
+/// Run `smelt <args>`, read one line of stdout, then drop the pipe so the
+/// child's next write hits a closed reader. Returns stderr text.
+#[cfg(unix)]
+fn early_close_stderr<I, S>(args: I) -> String
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    use std::io::{BufRead, BufReader};
+    use std::process::Stdio;
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_smelt"))
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("smelt spawns");
+
+    // Read a single line, then drop the reader to close our end of the pipe.
+    {
+        let stdout = child.stdout.take().expect("stdout piped");
+        let mut reader = BufReader::new(stdout);
+        let mut line = String::new();
+        let _ = reader.read_line(&mut line);
+    }
+
+    // Give the child a moment to notice the closed pipe and exit.
+    let output = child.wait_with_output().expect("smelt waits");
+    String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+#[cfg(unix)]
+#[test]
+fn a_closed_pipe_does_not_panic_doctor() {
+    // Regression: `smelt doctor | head -1` used to print a Rust panic dump
+    // ("failed printing to stdout: Broken pipe") and exit 101.
+    let stderr = early_close_stderr(["doctor"]);
+    assert!(
+        !stderr.contains("panicked"),
+        "panicked on a closed pipe: {stderr}"
+    );
+    assert!(
+        !stderr.contains("Broken pipe"),
+        "leaked a broken-pipe error to stderr: {stderr}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_closed_pipe_does_not_panic_help() {
+    let stderr = early_close_stderr(["--help"]);
+    assert!(
+        !stderr.contains("panicked"),
+        "panicked on a closed pipe: {stderr}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_closed_pipe_does_not_panic_completions() {
+    let stderr = early_close_stderr(["completions", "bash"]);
+    assert!(
+        !stderr.contains("panicked"),
+        "panicked on a closed pipe: {stderr}"
+    );
+}
