@@ -90,8 +90,11 @@ Magic bytes first; extension is only a tiebreak/disambiguator.
   content of a tag-like leading line is still not preserved verbatim; use a
   non-Markdown `.txt` consumer or remove the angle brackets when the marker
   must survive.
-- **Plain text input**: only paragraph structure is inferred; everything
-  else (headings, lists) is intentionally not guessed.
+- **Plain text input**: a `.txt` (or any bytes detection lands on plain
+  `Text`) is read through the **Markdown reader** (the plain-text source rule
+  in `docs/cli.md`), so Markdown constructs -- ATX headings, lists,
+  emphasis, code -- are interpreted rather than preserved verbatim. Text
+  with no Markdown syntax converts as paragraphs.
 - **Soft and hard breaks** (`LineBreak`): both collapse to a single space.
   IDM v0 has no break node, and a space roundtrips identically through HTML
   and plain text (`formats/markdown.rs`).

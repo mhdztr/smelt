@@ -49,7 +49,8 @@ Unicode mode (`ui::unicode_mode()`) requires ALL of:
 ## Human units
 
 - Bytes: `B`, `KB`, `MB`, `GB` -- decimal (1 KB = 1000 B), integers below
-  MB, one decimal place for MB and up. Examples: `512 B`, `3.1 KB`, `2.1 MB`.
+  1 KB, one decimal place for KB and up. Examples: `512 B`, `3.1 KB`,
+  `2.1 MB`.
 - Durations: `120 ms` below one second, then `1.4 s`, `2 m 05 s`.
 
 ## Output samples (normative)
@@ -63,7 +64,7 @@ a.md -> a.html (3.1 KB, 4 ms)
 Errors: one line, actionable, prefixed `✗` / `[fail]`, never a Debug dump:
 
 ```
-✗ failed: a.docx -> pdf (no native reader for docx in v0; run 'smelt doctor' for available engines)
+✗ no native writer for pdf in v0; run 'smelt doctor' for available engines
 ✗ failed: soffice pool: no workers. run 'smelt doctor'
 ✗ no such file: /nonexistent.md
 ```
@@ -99,7 +100,7 @@ smelt M0 uses no external engines; these are reported for future milestones.
 
 ```
 path      README.md
-format    Markdown (guessed: extension)
+format    Markdown (guessed: extension .md)
 size      3.4 KB
 lines     120
 words     640
@@ -124,8 +125,8 @@ with `null` for fields that do not apply.
 | Code | Meaning |
 | --- | --- |
 | 0 | success |
-| 1 | partial failure (batch: at least one ok, at least one failed) |
-| 2 | usage error (bad flags, missing `-t` where required, output path equals input path) |
+| 1 | partial failure (batch: at least one ok, at least one failed); also input read errors other than "not found" (e.g. permission denied) |
+| 2 | usage error (bad flags, missing `-t` where required, output path equals input path -- including a hardlink alias on Unix) |
 | 3 | unsupported conversion (no reader/writer for a format) |
 | 4 | missing input path |
 

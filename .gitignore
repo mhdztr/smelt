@@ -1,4 +1,7 @@
 /target
+/README.html
+/docs-in/
+/docs-out/
 .DS_Store
 *.swp
 *.swo

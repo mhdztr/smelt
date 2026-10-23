@@ -32,7 +32,7 @@ Exit codes (documented, stable):
 | --- | --- |
 | 0 | success |
 | 1 | partial failure (batch: at least one succeeded, at least one failed); also input read errors other than "not found" (e.g. permission denied) |
-| 2 | usage error (bad flags, missing `-t` where required, batch output-name collision, output path equals the input path) |
+| 2 | usage error (bad flags, missing `-t` where required, batch output-name collision, output path equals the input path -- including a hardlink alias on Unix) |
 | 3 | unsupported conversion (no reader or writer for a format) |
 | 4 | missing input path (the path does not exist) |
 
@@ -71,7 +71,7 @@ inputs use a directory (batch mode).
 | --- | --- |
 | `[INPUT]` | file, directory, or `-` for stdin. Default: `-` when stdin is not a terminal, else usage error |
 | `-t`, `--to <FMT>` | target format name (`md`, `html`, `txt`, ...). Required for stdin and directory input |
-| `-o`, `--output <PATH>` | output file, directory, or `-` for stdout |
+| `-o`, `--output <PATH>` | output file, or directory in batch mode; `-` for stdout |
 | `-q`, `--quiet` | suppress progress, per-file success lines, and the summary box; errors still print |
 | `-v`, `--verbose` | extra detail (detection evidence per file in batch mode) |
 | `--color <WHEN>` | see global options |
@@ -80,7 +80,7 @@ inputs use a directory (batch mode).
 
 | INPUT | `-t` | `-o` | Result |
 | --- | --- | --- | --- |
-| file | given | any | convert to `-t` |
+| file | given | file path or `-` | convert to `-t`; a directory path is batch-only and fails at write with exit 1 |
 | file | absent | file path with known extension | infer format from `-o` extension |
 | file | absent | file path with unknown or no extension | **error, exit 2**: "pass -t/--to or -o/--output to choose the output format: cannot infer a format from `<path>`" |
 | file | absent | absent | **error, exit 2**: "pass -t/--to or -o/--output to choose the output format" |
@@ -96,7 +96,9 @@ normalization pass only when the output path differs from the input. A
 resolved output path that equals the input path is refused with **exit 2**
 before anything is written, because rewriting the source through the IDM
 drops what the model does not carry (classes, inline styles, original
-structure):
+structure). On Unix a hardlink alias of the input counts as the input
+(compared by device and inode), so an output that shares the source inode is
+refused too:
 
 ```
 $ smelt convert a.html -t html
@@ -175,7 +177,7 @@ Progress: on a TTY, one progress bar per file inside a multi-progress
 group; on a non-TTY (and under `--color=never`), plain lines:
 
 ```
-converting a.md -> a.html ... ok
+converting a.md -> a.html ... ok (0 ms)
 converting b.md -> b.html ... failed (no native reader for docx in v0; run 'smelt doctor' for available engines)
 ```
 
@@ -198,7 +200,7 @@ failure was an unsupported conversion; 4 input directory missing.
 One line, actionable, exit code matched to cause:
 
 ```
-✗ failed: a.docx -> pdf (no native reader for docx in v0; run 'smelt doctor' for available engines)
+✗ no native writer for pdf in v0; run 'smelt doctor' for available engines
 ✗ no such file: /nonexistent.md        (exit 4)
 ```
 
@@ -232,6 +234,12 @@ native reader (for example PDF, DOCX, and CSV), `size_bytes` is `null` for
 stdin (unknown until read). Exit codes: 0 ok, 1 input exists but cannot be
 read (permission denied, directory), 4 missing file (the path does not
 exist).
+
+On any error, `--json` writes **nothing to stdout**; the usual human line
+(for example `✗ no such file: /nope.md`, or the ASCII `[fail] ...`) goes to
+stderr and the exit code matches the cause. JSON consumers must check the
+process exit code rather than parse an error object: M0 emits no JSON on
+failure.
 
 ## `smelt doctor`
 

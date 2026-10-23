@@ -58,6 +58,10 @@ impl SmeltError {
 /// Declared inline as `extern "C"` to keep `smelt-cli` dependency-free; the
 /// libc ABI for `signal(2)` is stable across the platforms this ships on.
 /// No-op on non-Unix targets.
+///
+/// `Option<extern "C" fn(i32)>` cannot represent `SIG_ERR` (`(void
+/// (*)(int))-1`), but the return value is discarded and no misbehavior has
+/// been observed, so the declaration is intentionally left unchanged in M0.
 #[cfg(unix)]
 type SignalHandler = Option<extern "C" fn(i32)>;
 
