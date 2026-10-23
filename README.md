@@ -44,7 +44,7 @@ Examples use `./target/release/smelt`; substitute `smelt` once installed.
 
 ```sh
 # Convert one file. The output format is inferred from the -o extension.
-./target/release/smelt convert notes.md -o notes.html
+./target/release/smelt convert README.md -o README.html
 
 # Explicit target format; stdin/stdout streaming with -
 printf '# Hi\n\n**bold**\n' | ./target/release/smelt convert - -t html
