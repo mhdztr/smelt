@@ -38,7 +38,18 @@ pub fn run(theme: &Theme) -> Result<(), SmeltError> {
 /// styled by the caller.
 fn row(theme: &Theme, found: bool, name: &str, detail: &str) -> String {
     let mark = if found { theme.ok("") } else { theme.fail("") };
-    let pad = theme.mark_width().saturating_sub(mark.chars().count());
+    // Measure the mark before styling: with color on, `mark` contains ANSI
+    // escapes, so counting its chars saturated the pad to zero and the ASCII
+    // fallbacks lost their alignment. The visible mark is the raw glyph plus
+    // its trailing space.
+    let visible = if found {
+        theme.ok_mark()
+    } else {
+        theme.fail_mark()
+    };
+    let pad = theme
+        .mark_width()
+        .saturating_sub(visible.chars().count() + 1);
     let spacing = " ".repeat(pad);
     format!(
         "{mark}{spacing}{name:name_width$}{detail}",
@@ -101,6 +112,37 @@ mod tests {
         assert_eq!(
             row(&t, false, "pandoc", "not found (optional)"),
             "[fail] pandoc        not found (optional)"
+        );
+    }
+
+    #[test]
+    fn row_ascii_fallback_with_color_aligns() {
+        // Regression: padding was computed from `theme.ok("")`/`fail("")`,
+        // whose char count includes ANSI escapes when color is on, so the
+        // pad saturated to zero and `[ok]`/`[fail]` put the name column at
+        // different offsets on a colored ASCII terminal.
+        let t = theme(true, false);
+        let ok = row(&t, true, "tesseract", "/usr/bin/tesseract");
+        let fail = row(&t, false, "pandoc", "not found (optional)");
+        assert!(ok.contains("\u{1b}"), "color is on: {ok:?}");
+        assert!(fail.contains("\u{1b}"), "color is on: {fail:?}");
+        let name_col = |s: &str| s.find("tesseract").or_else(|| s.find("pandoc")).unwrap();
+        assert_eq!(
+            name_col(&ok),
+            name_col(&fail),
+            "name column misaligned with color on: {ok:?} / {fail:?}"
+        );
+        let detail_col = |s: &str| {
+            if let Some(i) = s.find("/usr/bin/tesseract") {
+                i
+            } else {
+                s.find("not found").unwrap()
+            }
+        };
+        assert_eq!(
+            detail_col(&ok),
+            detail_col(&fail),
+            "detail column misaligned with color on: {ok:?} / {fail:?}"
         );
     }
 
