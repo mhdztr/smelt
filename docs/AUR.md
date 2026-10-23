@@ -103,7 +103,7 @@ not a publish). Verified facts:
 | `license` | `MIT` | `MIT` | `MIT` |
 | `arch` | `x86_64`, `aarch64` | `x86_64` | `x86_64`, `aarch64` |
 | `depends` | `gcc-libs`, `glibc` | `gcc-libs`, `glibc` | `gcc-libs`, `glibc` |
-| `makedepends` | `cargo` | (none) | `git`, `cargo` |
+| `makedepends` | `cargo`, `git` | (none) | `git`, `cargo` |
 | extra | -- | `provides=('smelt')`, `conflicts=('smelt')`, `options=('!strip')` | `provides=('smelt')`, `conflicts=('smelt')` |
 | source | `smelt-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz` | `smelt-bin-$pkgver.tar.gz::$url/releases/download/v$pkgver/smelt-x86_64-unknown-linux-gnu.tar.gz` | `smelt-git::git+https://github.com/mhdztr/smelt.git` |
 | checksums | 64-zero placeholder | 64-zero placeholder | `sha256sums=('SKIP')` |
@@ -135,7 +135,8 @@ none of which exist today:
    which downloads the tarball and rewrites `sha256sums`. A build against
    the placeholder sums fails at the integrity check.
 3. **A build toolchain.** `smelt` and `smelt-git` build from source, so they
-   need `cargo` (and `git` for `smelt-git`) plus the base-devel group on the
+   need `cargo` plus `git` (the test suite drives real git fixtures, and
+   `makepkg` runs `check()` by default) plus the base-devel group on the
    build machine; `smelt-bin` needs no toolchain, only `--nodeps` is enough
    to test it before the release asset exists.
 4. **A non-root user.** `makepkg` refuses to run as root.
@@ -143,8 +144,12 @@ none of which exist today:
 Until 1 and 2 are satisfied, local `makepkg -s` on `smelt`/`smelt-bin` can
 only be expected to fail at source retrieval / integrity, not to build.
 `smelt-git` is the only package whose source resolves without a release
-(it clones HEAD), so it is the one that can be built today; its `pkgver()`
-falls back to `0.1.0.r0.g<commit>` when the clone carries no tag.
+(it clones HEAD), so it is the one whose source can be fetched today; its
+`pkgver()` falls back to `0.1.0.r0.g<commit>` when the clone carries no tag.
+`build()` and `package()` in all three PKGBUILDs agree on cargo's default
+target directory (no `CARGO_TARGET_DIR` override), which the packaging tests
+pin; a full `makepkg -s` still needs network access to GitHub and the real
+release artifacts listed above.
 
 ## Placeholder checksums
 

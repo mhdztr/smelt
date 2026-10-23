@@ -7,7 +7,7 @@ arch=('x86_64' 'aarch64')
 url="https://github.com/mhdztr/smelt"
 license=('MIT')
 depends=('gcc-libs' 'glibc')
-makedepends=('cargo')
+makedepends=('cargo' 'git')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 # Placeholder until the first tagged release; scripts/aur-update.sh replaces
 # this with the real sha256 of the tag tarball before any publish.
@@ -21,7 +21,6 @@ prepare() {
 
 build() {
   export RUSTUP_TOOLCHAIN=stable
-  export CARGO_TARGET_DIR=target
   cargo build --frozen --manifest-path "$pkgname-$pkgver/Cargo.toml" --release
 }
 

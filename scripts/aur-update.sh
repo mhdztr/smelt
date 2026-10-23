@@ -53,6 +53,10 @@ if [[ -n "$tarball_url" ]]; then
   else
     echo "warning: could not download the tarball (tag or release asset not published yet);" >&2
     echo "warning: leaving sha256sums untouched -- do NOT publish with placeholder sums." >&2
+    # Never continue to the .SRCINFO step after a failed download: the script
+    # would bump pkgver, keep the old checksum, and exit 0, which invites a
+    # publish with a stale sha256.
+    exit 1
   fi
 fi
 

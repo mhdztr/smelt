@@ -35,7 +35,6 @@ prepare() {
 
 build() {
   export RUSTUP_TOOLCHAIN=stable
-  export CARGO_TARGET_DIR=target
   cargo build --frozen --manifest-path "$pkgname/Cargo.toml" --release
 }
 

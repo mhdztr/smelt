@@ -44,6 +44,9 @@ fn repo_root() -> PathBuf {
 
 fn git(dir: &Path, args: &[&str]) {
     let out = Command::new("git")
+        // A maintainer/CI global `commit.gpgsign=true` must not make this
+        // fixture commit (or the test) fail.
+        .args(["-c", "commit.gpgsign=false"])
         .args(args)
         .current_dir(dir)
         .output()
@@ -112,6 +115,48 @@ fn smelt_git_pkgver_handles_no_tags_and_strips_the_v() {
     let tagged = run_pkgver(&pkgbuild, dir.path());
     assert_eq!(tagged, format!("0.2.0.r0.g{commit}"));
     assert!(!tagged.contains('v'), "leading v leaked into pkgver");
+}
+
+#[cfg(unix)]
+#[test]
+fn pkgbuilds_declare_git_and_use_cargos_default_target_dir() {
+    let repo = repo_root();
+
+    // `smelt`'s `check()` runs this test suite, which shells out to `git`;
+    // git is not part of Arch `base-devel`, so it must be a makedepend or a
+    // clean-chroot `makepkg` fails in check().
+    let smelt =
+        fs::read_to_string(repo.join("packaging/aur/smelt/PKGBUILD")).expect("smelt PKGBUILD");
+    assert!(
+        smelt.contains("makedepends=('cargo' 'git')"),
+        "smelt must declare git in makedepends"
+    );
+    // package() installs from cargo's default target directory inside the
+    // manifest directory; a CARGO_TARGET_DIR override in build() pointed
+    // somewhere else and package() could not find the binary.
+    assert!(
+        !smelt.contains("CARGO_TARGET_DIR"),
+        "smelt must not override CARGO_TARGET_DIR"
+    );
+    assert!(
+        smelt.contains("\"$pkgname-$pkgver/target/release/smelt\""),
+        "smelt package() must read the default target dir"
+    );
+
+    let smelt_git = fs::read_to_string(repo.join("packaging/aur/smelt-git/PKGBUILD"))
+        .expect("smelt-git PKGBUILD");
+    assert!(
+        smelt_git.contains("makedepends=('git' 'cargo')"),
+        "smelt-git keeps git in makedepends"
+    );
+    assert!(
+        !smelt_git.contains("CARGO_TARGET_DIR"),
+        "smelt-git must not override CARGO_TARGET_DIR"
+    );
+    assert!(
+        smelt_git.contains("\"$pkgname/target/release/smelt\""),
+        "smelt-git package() must read the default target dir"
+    );
 }
 
 #[cfg(unix)]
@@ -197,5 +242,87 @@ fn aur_update_keeps_srcinfo_when_makepkg_fails() {
     assert_eq!(
         fs::read_to_string(&srcinfo).expect(".SRCINFO readable"),
         "pkgbase = fake\n"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn aur_update_exits_non_zero_when_the_download_fails() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let repo = repo_root();
+    let dir = TempDir::new("curl-fail");
+    let package = dir.path().join("packaging/aur/smelt-bin");
+    fs::create_dir_all(&package).expect("package dir created");
+    fs::create_dir_all(dir.path().join("scripts")).expect("scripts dir created");
+    fs::copy(
+        repo.join("scripts/aur-update.sh"),
+        dir.path().join("scripts/aur-update.sh"),
+    )
+    .expect("script copied");
+    for name in ["PKGBUILD", ".SRCINFO"] {
+        fs::copy(
+            repo.join("packaging/aur/smelt-bin").join(name),
+            package.join(name),
+        )
+        .expect("package file copied");
+    }
+    let srcinfo = package.join(".SRCINFO");
+    let srcinfo_before = fs::read(&srcinfo).expect(".SRCINFO readable");
+    let pkgbuild = package.join("PKGBUILD");
+    let pkgbuild_before = fs::read_to_string(&pkgbuild).expect("PKGBUILD readable");
+    assert!(
+        pkgbuild_before.contains("sha256sums=('0000"),
+        "fixture keeps the placeholder sums"
+    );
+
+    let bin = dir.path().join("fakebin");
+    fs::create_dir_all(&bin).expect("fake bin created");
+    // A failing download must be fatal even though makepkg would succeed:
+    // continuing would keep the old checksum while bumping pkgver.
+    let curl = bin.join("curl");
+    fs::write(&curl, "#!/bin/sh\nexit 7\n").expect("fake curl written");
+    let makepkg = bin.join("makepkg");
+    fs::write(&makepkg, "#!/bin/sh\nprintf 'pkgbase = fake\\n'\n").expect("fake makepkg written");
+    for tool in [&curl, &makepkg] {
+        let mut perms = fs::metadata(tool).expect("stat").permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(tool, perms).expect("fake tool executable");
+    }
+
+    let path_env = format!(
+        "{}:{}",
+        bin.display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    let out = Command::new("bash")
+        .arg(dir.path().join("scripts/aur-update.sh"))
+        .arg("smelt-bin")
+        .arg("9.9.9")
+        .env("PATH", &path_env)
+        .current_dir(dir.path())
+        .output()
+        .expect("script runs");
+
+    assert!(
+        !out.status.success(),
+        "script must exit non-zero after a failed download"
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("could not download"),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        fs::read(&srcinfo).expect(".SRCINFO still readable"),
+        srcinfo_before,
+        ".SRCINFO must not be regenerated after a failed download"
+    );
+    let pkgbuild_after = fs::read_to_string(&pkgbuild).expect("PKGBUILD readable");
+    assert!(
+        pkgbuild_after.contains(
+            "sha256sums=('0000000000000000000000000000000000000000000000000000000000000000')"
+        ),
+        "stale placeholder checksum must be left untouched"
     );
 }

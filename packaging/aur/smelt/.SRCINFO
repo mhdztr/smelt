@@ -7,6 +7,7 @@ pkgbase = smelt
 	arch = aarch64
 	license = MIT
 	makedepends = cargo
+	makedepends = git
 	depends = gcc-libs
 	depends = glibc
 	source = smelt-0.1.0.tar.gz::https://github.com/mhdztr/smelt/archive/refs/tags/v0.1.0.tar.gz
