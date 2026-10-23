@@ -700,15 +700,11 @@ fn write_item(item: &[Block], out: &mut String) {
     for block in item {
         match block {
             Block::Paragraph { inlines } if inlines.is_empty() => continue,
-            Block::Paragraph { .. } => {
+            Block::Paragraph { inlines } => {
                 if wrote_paragraph {
                     write_block(block, out);
                 } else {
-                    out.push_str(&inlines_html(if let Block::Paragraph { inlines } = block {
-                        inlines
-                    } else {
-                        unreachable!()
-                    }));
+                    out.push_str(&inlines_html(inlines));
                     wrote_paragraph = true;
                 }
             }
