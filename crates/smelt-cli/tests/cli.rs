@@ -65,12 +65,21 @@ where
         .stderr(Stdio::piped())
         .spawn()
         .expect("smelt spawns");
-    child
+    // The child can exit before reading stdin (for example `convert -` with
+    // no `-t` is a usage error). That closes the pipe and `write_all` may
+    // race into EPIPE; it is the expected outcome there, not a test failure.
+    let write = child
         .stdin
         .take()
         .expect("stdin is piped")
-        .write_all(input.as_bytes())
-        .expect("stdin written");
+        .write_all(input.as_bytes());
+    if let Err(err) = write {
+        assert_eq!(
+            err.kind(),
+            std::io::ErrorKind::BrokenPipe,
+            "unexpected stdin write error: {err}"
+        );
+    }
     child.wait_with_output().expect("smelt finishes")
 }
 
@@ -326,6 +335,208 @@ fn stdin_and_file_interpret_plain_text_identically() {
     let heading = run_stdin(["convert", "-", "-t", "html"], "# Hi\n");
     assert_eq!(code(&heading), 0, "stderr: {}", stderr_of(&heading));
     assert!(stdout_of(&heading).contains("<h1>Hi</h1>"), "pipe heading");
+}
+
+#[test]
+fn batch_and_single_file_interpret_plain_text_identically() {
+    // Regression: single-file conversion resolved detected `Text` to the
+    // Markdown reader, but the batch path passed the raw detection format to
+    // `read_document`. A `.txt` file in a directory was therefore read as
+    // plain text and emitted literal `**b**` inside HTML while the same file
+    // converted alone emitted `<strong>b</strong>` (docs/cli.md: both
+    // channels, including batch, apply the plain-text source rule).
+    let dir = TempDir::new("batch-parity");
+    let input = dir.file("p.txt", "a **b** c\n");
+    let nested = dir.path().join("in");
+    fs::create_dir_all(&nested).expect("nested dir");
+    fs::copy(&input, nested.join("p.txt")).expect("fixture copied");
+
+    let single_path = dir.path().join("single.html");
+    let single = run([
+        "convert",
+        input.to_str().unwrap(),
+        "-t",
+        "html",
+        "-o",
+        single_path.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&single), 0, "stderr: {}", stderr_of(&single));
+
+    let out_dir = dir.path().join("out");
+    let batch = run([
+        "convert",
+        nested.to_str().unwrap(),
+        "-t",
+        "html",
+        "-o",
+        out_dir.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&batch), 0, "stderr: {}", stderr_of(&batch));
+
+    let single_html = fs::read_to_string(&single_path).expect("single output");
+    let batch_html = fs::read_to_string(out_dir.join("p.html")).expect("batch output");
+    assert!(
+        single_html.contains("<strong>b</strong>"),
+        "single file parsed emphasis: {single_html}"
+    );
+    assert!(
+        batch_html.contains("<strong>b</strong>"),
+        "batch file parsed emphasis: {batch_html}"
+    );
+    assert!(
+        !batch_html.contains("**b**"),
+        "batch emitted literal Markdown: {batch_html}"
+    );
+    assert_eq!(
+        single_html, batch_html,
+        "single-file and batch outputs must be identical"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn info_distinguishes_unreadable_inputs_from_missing_ones() {
+    // Regression: every `detect_path` error was reported as "no such file"
+    // with exit 4 (docs/cli.md: only a genuinely absent path is exit 4; an
+    // existing but unreadable path reports the OS reason at exit 1).
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = TempDir::new("info-io");
+
+    // A directory is not a document: exit 1, and never "no such file".
+    let readonly = dir.path().join("a-directory");
+    fs::create_dir_all(&readonly).expect("directory fixture");
+    let as_dir = run(["info", readonly.to_str().unwrap()]);
+    assert_eq!(code(&as_dir), 1, "stderr: {}", stderr_of(&as_dir));
+    let err = stderr_of(&as_dir);
+    assert!(err.contains("path is a directory"), "reason given: {err}");
+    assert!(
+        !err.contains("no such file"),
+        "must not claim the directory is missing: {err}"
+    );
+
+    // Permission denied: same contract. Root can read anything, so skip the
+    // assertion when the chmod does not bite (same guard as the convert test).
+    let secret = dir.file("secret.md", "# Secret\n");
+    let mut perms = fs::metadata(&secret).expect("stat").permissions();
+    perms.set_mode(0o000);
+    fs::set_permissions(&secret, perms).expect("chmod");
+    let denied = run(["info", secret.to_str().unwrap()]);
+    let mut perms = fs::metadata(&secret).expect("stat").permissions();
+    perms.set_mode(0o644);
+    fs::set_permissions(&secret, perms).expect("chmod back");
+    if code(&denied) != 0 {
+        assert_eq!(code(&denied), 1, "stderr: {}", stderr_of(&denied));
+        let err = stderr_of(&denied);
+        assert!(err.contains("permission denied"), "reason given: {err}");
+        assert!(
+            !err.contains("no such file"),
+            "must not claim the file is missing: {err}"
+        );
+    } else {
+        eprintln!("skipping permission assertion: running as root");
+    }
+
+    // A genuinely absent path is still exit 4.
+    let missing = run(["info", dir.path().join("nope.md").to_str().unwrap()]);
+    assert_eq!(code(&missing), 4, "stderr: {}", stderr_of(&missing));
+    assert!(stderr_of(&missing).contains("no such file:"));
+}
+
+#[test]
+fn single_file_in_place_conversion_is_refused() {
+    // Regression: `convert a.html -t html` resolved the output to the input
+    // and rewrote the source through the IDM at exit 0, silently dropping
+    // classes, styles, and structure the model does not carry.
+    let dir = TempDir::new("in-place");
+    let input = dir.file("a.html", "<div class=\"x\" style=\"color:red\">hi</div>\n");
+    let before = fs::read_to_string(&input).expect("fixture read");
+
+    let implicit = run(["convert", input.to_str().unwrap(), "-t", "html"]);
+    assert_eq!(code(&implicit), 2, "stderr: {}", stderr_of(&implicit));
+    let err = stderr_of(&implicit);
+    assert!(err.contains("in place"), "message says in place: {err}");
+    assert!(err.contains("a.html"), "message names the file: {err}");
+    assert!(err.contains("-o"), "message points at -o: {err}");
+    assert_eq!(
+        fs::read_to_string(&input).expect("fixture still readable"),
+        before,
+        "source must be untouched"
+    );
+
+    // An explicit `-o` that resolves to the input is the same refusal.
+    let explicit = run([
+        "convert",
+        input.to_str().unwrap(),
+        "-t",
+        "html",
+        "-o",
+        input.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&explicit), 2, "stderr: {}", stderr_of(&explicit));
+    assert_eq!(
+        fs::read_to_string(&input).expect("fixture still readable"),
+        before,
+        "source must be untouched by an explicit -o"
+    );
+
+    // A distinct output path still works (same-format normalization).
+    let normalized = dir.path().join("normalized.html");
+    let ok = run([
+        "convert",
+        input.to_str().unwrap(),
+        "-t",
+        "html",
+        "-o",
+        normalized.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&ok), 0, "stderr: {}", stderr_of(&ok));
+    assert!(normalized.is_file(), "distinct output written");
+}
+
+#[test]
+fn batch_in_place_conversion_is_refused_before_writing() {
+    // `convert dir -t md -o dir` maps every `*.md` input onto itself. The
+    // batch check must refuse the whole run (exit 2) before any parallel
+    // write, leaving every source untouched.
+    let dir = TempDir::new("batch-in-place");
+    dir.file("a.md", "# A\n\nbody\n");
+    dir.file("b.txt", "plain\n");
+    let before = fs::read_to_string(dir.path().join("a.md")).expect("fixture read");
+
+    let out = run([
+        "convert",
+        dir.path().to_str().unwrap(),
+        "-t",
+        "md",
+        "-o",
+        dir.path().to_str().unwrap(),
+    ]);
+
+    assert_eq!(code(&out), 2, "stderr: {}", stderr_of(&out));
+    let err = stderr_of(&out);
+    assert!(err.contains("in place"), "message says in place: {err}");
+    assert!(err.contains("a.md"), "message names the file: {err}");
+    assert!(err.contains("-o"), "message points at -o: {err}");
+    assert_eq!(
+        fs::read_to_string(dir.path().join("a.md")).expect("fixture still readable"),
+        before,
+        "source must be untouched"
+    );
+}
+
+#[test]
+fn info_reports_txt_with_a_leading_tag_as_text_not_html() {
+    // Regression: `<error> disk full` in a `.txt` was classified as HTML by
+    // the leading-tag heuristic (FORMATS.md detection rules).
+    let dir = TempDir::new("txt-tag");
+    let input = dir.file("e.txt", "<error> disk full\n");
+    let out = run(["info", input.to_str().unwrap(), "--json"]);
+
+    assert_eq!(code(&out), 0, "stderr: {}", stderr_of(&out));
+    let value: serde_json::Value =
+        serde_json::from_str(&stdout_of(&out)).expect("valid JSON on stdout");
+    assert_eq!(value["format"], "Text", "not HTML: {value}");
 }
 
 #[test]
