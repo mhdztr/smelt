@@ -112,7 +112,7 @@ fn write_block(block: &Block, out: &mut String) {
                     out.push('\n');
                 }
                 let marker = if *ordered {
-                    format!("{}. ", start + i as u64)
+                    format!("{}. ", start.saturating_add(i as u64))
                 } else {
                     "- ".to_owned()
                 };

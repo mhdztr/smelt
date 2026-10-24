@@ -44,7 +44,10 @@ fn parse_options() -> Options<'static> {
 
 struct Converter {
     meta: Metadata,
+    depth: usize,
 }
+
+const MAX_MD_READ_DEPTH: usize = 512;
 
 impl Reader for MarkdownReader {
     fn read(&self, input: &[u8], _fmt: Format) -> Result<Document, ReadError> {
@@ -53,6 +56,7 @@ impl Reader for MarkdownReader {
         let root = parse_document(&arena, text, &parse_options());
         let mut converter = Converter {
             meta: Metadata::default(),
+            depth: 0,
         };
         let blocks = converter.blocks(root);
         Ok(Document {
@@ -65,6 +69,10 @@ impl Reader for MarkdownReader {
 impl Converter {
     /// Convert the children of a block container into IDM blocks.
     fn blocks<'a>(&mut self, node: &'a AstNode<'a>) -> Vec<Block> {
+        if self.depth >= MAX_MD_READ_DEPTH {
+            return Vec::new();
+        }
+        self.depth += 1;
         let mut out = Vec::new();
         for child in node.children() {
             match &child.data().value {
@@ -97,7 +105,7 @@ impl Converter {
                 }
                 NodeValue::List(list) => {
                     let ordered = matches!(list.list_type, ListType::Ordered);
-                    let start = if ordered { list.start.max(1) as u64 } else { 0 };
+                    let start = if ordered { (list.start.max(1) as u64).min(u64::MAX / 2) } else { 0 };
                     let items = child.children().map(|item| self.blocks(item)).collect();
                     out.push(Block::List {
                         ordered,
@@ -150,6 +158,7 @@ impl Converter {
                 _ => out.extend(self.blocks(child)),
             }
         }
+        self.depth -= 1;
         out
     }
 }
@@ -353,15 +362,29 @@ impl Writer for MarkdownWriter {
     }
 }
 
+const MAX_MD_DEPTH: usize = 512;
+
 fn blocks_to_md(blocks: &[Block]) -> String {
+    blocks_to_md_depth(blocks, 0)
+}
+
+fn blocks_to_md_depth(blocks: &[Block], depth: usize) -> String {
+    if depth >= MAX_MD_DEPTH {
+        return String::new();
+    }
     blocks
         .iter()
-        .map(block_to_md)
+        .map(|b| block_to_md_depth(b, depth + 1))
         .collect::<Vec<_>>()
         .join("\n\n")
 }
 
+#[allow(dead_code)]
 fn block_to_md(block: &Block) -> String {
+    block_to_md_depth(block, 0)
+}
+
+fn block_to_md_depth(block: &Block, depth: usize) -> String {
     match block {
         Block::Heading { level, inlines } => {
             let hashes = "#".repeat((*level as usize).clamp(1, 6));
@@ -376,9 +399,9 @@ fn block_to_md(block: &Block) -> String {
             .iter()
             .enumerate()
             .map(|(i, item)| {
-                let inner = blocks_to_md(item);
+                let inner = blocks_to_md_depth(item, depth + 1);
                 let (marker, indent) = if *ordered {
-                    let n = start + i as u64;
+                    let n = start.saturating_add(i as u64);
                     (format!("{n}. "), " ".repeat(n.to_string().len() + 2))
                 } else {
                     ("- ".to_owned(), "  ".to_owned())
@@ -444,7 +467,7 @@ fn block_to_md(block: &Block) -> String {
             format!("![{}]({})", escape_text(alt, true, false), link_dest(src))
         }
         Block::Rule => "---".to_owned(),
-        Block::Blockquote { blocks } => blocks_to_md(blocks)
+        Block::Blockquote { blocks } => blocks_to_md_depth(blocks, depth + 1)
             .lines()
             .map(|line| {
                 if line.is_empty() {
@@ -509,27 +532,41 @@ fn inlines_to_md(inlines: &[Inline], at_line_start: bool, in_table: bool) -> Str
 /// list ordinals, ... open new constructs); `in_table` adds `|`.
 fn escape_text(text: &str, line_start: bool, in_table: bool) -> String {
     let mut out = String::with_capacity(text.len());
+    // Track digit prefix at line start without re-scanning the whole prefix.
+    let mut digit_prefix = 0usize;
+    let mut at_digit_start = line_start;
     for (i, c) in text.char_indices() {
-        let next = text[i + c.len_utf8()..].chars().next();
+        let rest = &text[i + c.len_utf8()..];
+        let next = rest.chars().next();
         let at_start = line_start && i == 0;
         // Digits directly before "." or ")" at line start form an ordered
         // list marker ("3. item"); escape the punctuation so the number
         // stays literal text.
-        let digits_before =
-            line_start && !text[..i].is_empty() && text[..i].chars().all(|c| c.is_ascii_digit());
+        if line_start && at_digit_start && c.is_ascii_digit() {
+            digit_prefix += 1;
+        } else if line_start {
+            at_digit_start = false;
+        }
+        let digits_before = line_start && digit_prefix >= 1;
         // A scheme followed by "//" opens a GFM autolink on reparse;
         // escape the colon so literal URL-shaped text stays text.
-        let scheme = ["http://", "https://", "ftp://"].iter().any(|s| {
-            let word = &s[..s.len() - 3]; // scheme without the "://"
+        let scheme = if c == ':' && rest.starts_with("//") {
             let before = &text[..i];
-            before.len() >= word.len()
-                && before.ends_with(word)
-                && text[i + 1..].starts_with("//")
-                && before[..before.len() - word.len()]
-                    .chars()
-                    .next_back()
-                    .is_none_or(|c| !(c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-')))
-        });
+            ["http", "https", "ftp"].iter().any(|w| {
+                if before.ends_with(*w) {
+                    let p = before.len() - w.len();
+                    if p == 0 {
+                        return true;
+                    }
+                    let pb = before.as_bytes()[p - 1];
+                    !(pb.is_ascii_alphanumeric() || pb == b'.' || pb == b'+' || pb == b'-')
+                } else {
+                    false
+                }
+            })
+        } else {
+            false
+        };
         let escaped = match c {
             '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>' | '&' | '~' => true,
             '|' => in_table,

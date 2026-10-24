@@ -41,10 +41,10 @@ impl Reader for HtmlReader {
         read_meta(root, &mut meta);
         let mut blocks = Vec::new();
         match find_body(root) {
-            Some(body) => walk_blocks(body, &mut blocks),
+            Some(body) => walk_blocks_depth(body, &mut blocks, 0),
             // parse_document always synthesises a body; the fallback keeps
             // us honest if that ever changes.
-            None => walk_blocks(root, &mut blocks),
+            None => walk_blocks_depth(root, &mut blocks, 0),
         }
         Ok(Document { meta, blocks })
     }
@@ -80,8 +80,8 @@ pub(crate) fn fragment_blocks(html: &str) -> Vec<Block> {
     let root = dom.root_element();
     let mut out = Vec::new();
     match find_body(root) {
-        Some(body) => walk_blocks(body, &mut out),
-        None => walk_blocks(root, &mut out),
+        Some(body) => walk_blocks_depth(body, &mut out, 0),
+        None => walk_blocks_depth(root, &mut out, 0),
     }
     out
 }
@@ -205,7 +205,17 @@ fn is_inline(name: &str) -> bool {
 /// Walk block-level children of `el` into `out`, buffering loose text into
 /// paragraphs. Promoted images (from inline positions) land after the
 /// paragraph that contained them.
+#[allow(dead_code)]
 fn walk_blocks(el: ElementRef, out: &mut Vec<Block>) {
+    walk_blocks_depth(el, out, 0);
+}
+
+const MAX_HTML_BLOCK_DEPTH: usize = 512;
+
+fn walk_blocks_depth(el: ElementRef, out: &mut Vec<Block>, depth: usize) {
+    if depth >= MAX_HTML_BLOCK_DEPTH {
+        return;
+    }
     let mut pending: Vec<Inline> = Vec::new();
     let mut promoted: Vec<Block> = Vec::new();
     for child in el.children() {
@@ -238,12 +248,12 @@ fn walk_blocks(el: ElementRef, out: &mut Vec<Block>) {
             }
             "ul" | "ol" => {
                 flush(&mut pending, &mut promoted, out);
-                out.push(list_block(child_el));
+                out.push(list_block(child_el, depth + 1));
             }
             "blockquote" => {
                 flush(&mut pending, &mut promoted, out);
                 let mut inner = Vec::new();
-                walk_blocks(child_el, &mut inner);
+                walk_blocks_depth(child_el, &mut inner, depth + 1);
                 out.push(Block::Blockquote { blocks: inner });
             }
             "pre" => {
@@ -272,7 +282,7 @@ fn walk_blocks(el: ElementRef, out: &mut Vec<Block>) {
             _ => {
                 flush(&mut pending, &mut promoted, out);
                 let mut nested = Vec::new();
-                walk_blocks(child_el, &mut nested);
+                walk_blocks_depth(child_el, &mut nested, depth + 1);
                 out.append(&mut nested);
             }
         }
@@ -534,14 +544,14 @@ fn table_block(el: ElementRef) -> Option<Block> {
     })
 }
 
-fn list_block(el: ElementRef) -> Block {
+fn list_block(el: ElementRef, depth: usize) -> Block {
     let ordered = el.value().name() == "ol";
     let start = if ordered {
         el.value()
             .attr("start")
             .and_then(|s| s.trim().parse::<u64>().ok())
             .unwrap_or(1)
-            .max(1)
+            .clamp(1, u64::MAX / 2)
     } else {
         0
     };
@@ -550,7 +560,7 @@ fn list_block(el: ElementRef) -> Block {
         .filter(|c| c.value().name() == "li")
         .map(|li| {
             let mut blocks = Vec::new();
-            walk_blocks(li, &mut blocks);
+            walk_blocks_depth(li, &mut blocks, depth + 1);
             blocks
         })
         .collect();
