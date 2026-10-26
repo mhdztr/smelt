@@ -5,9 +5,12 @@
 //! This module also hosts whitespace/text helpers shared by the html and
 //! plain-text converters.
 
+pub mod csv;
+mod delimited;
 pub mod html;
 pub mod markdown;
 pub mod text;
+pub mod tsv;
 
 use crate::idm::Inline;
 
@@ -213,5 +216,126 @@ mod cross_format_tests {
             "txt->md->txt leg diverged\n--- txt ---\n{}",
             write_txt(&doc_md)
         );
+    }
+}
+
+#[cfg(test)]
+mod delimited_tests {
+    use smelt_detect::Format;
+
+    use crate::idm::{Align, Block, Document, Inline, Metadata};
+    use crate::{Reader, Writer};
+
+    use super::csv::{CsvReader, CsvWriter};
+    use super::tsv::{TsvReader, TsvWriter};
+
+    fn table_document() -> Document {
+        Document {
+            meta: Metadata::default(),
+            blocks: vec![Block::Table {
+                header: vec![
+                    vec![Inline::Text("name".to_owned())],
+                    vec![Inline::Text("note".to_owned())],
+                ],
+                rows: vec![vec![
+                    vec![Inline::Text("Alice".to_owned())],
+                    vec![Inline::Text("says, \"مرحبا\"".to_owned())],
+                ]],
+                align: vec![Align::None, Align::None],
+            }],
+        }
+    }
+
+    #[test]
+    fn csv_roundtrip_preserves_quoted_fields_and_unicode() {
+        let input = "name,note\r\nAlice,\"says, \"\"مرحبا\"\"\"\r\n";
+        let doc = CsvReader
+            .read(input.as_bytes(), Format::Csv)
+            .expect("CSV parses");
+        let output = CsvWriter.write(&doc, Format::Csv).expect("CSV writes");
+        let back = CsvReader
+            .read(&output, Format::Csv)
+            .expect("written CSV parses");
+
+        assert_eq!(doc, back);
+        assert_eq!(
+            doc.blocks,
+            table_document().blocks,
+            "CSV maps the first record to the header"
+        );
+    }
+
+    #[test]
+    fn tsv_roundtrip_preserves_tabs_and_newlines_inside_quotes() {
+        let input = "name\tnote\nAlice\t\"first line\nsecond\"\n";
+        let doc = TsvReader
+            .read(input.as_bytes(), Format::Tsv)
+            .expect("TSV parses");
+        let output = TsvWriter.write(&doc, Format::Tsv).expect("TSV writes");
+        let back = TsvReader
+            .read(&output, Format::Tsv)
+            .expect("written TSV parses");
+
+        assert_eq!(doc, back);
+        assert_eq!(output, b"name\tnote\nAlice\t\"first line\nsecond\"\n");
+    }
+
+    #[test]
+    fn ragged_delimited_records_are_actionable_errors() {
+        let err = CsvReader
+            .read(b"a,b\n1\n", Format::Csv)
+            .expect_err("ragged CSV must be rejected");
+        assert!(err.to_string().contains("row 2 has 1 fields, expected 2"));
+    }
+
+    #[test]
+    fn empty_fields_and_malformed_quotes_are_distinguished() {
+        let doc = CsvReader
+            .read(b"a,b,c\n,,\n", Format::Csv)
+            .expect("empty CSV fields are valid");
+        assert_eq!(
+            doc.blocks,
+            vec![Block::Table {
+                header: vec![
+                    vec![Inline::Text("a".to_owned())],
+                    vec![Inline::Text("b".to_owned())],
+                    vec![Inline::Text("c".to_owned())],
+                ],
+                rows: vec![vec![vec![], vec![], vec![]]],
+                align: vec![Align::None, Align::None, Align::None],
+            }]
+        );
+
+        let unterminated = CsvReader
+            .read(b"a,b\n\"unfinished\n", Format::Csv)
+            .expect_err("unterminated quoted field must fail");
+        assert!(
+            unterminated
+                .to_string()
+                .contains("unterminated quoted field on row 2")
+        );
+
+        let unexpected = CsvReader
+            .read(b"a,b\nnot\"quoted\n", Format::Csv)
+            .expect_err("quotes in unquoted fields must fail");
+        assert!(
+            unexpected
+                .to_string()
+                .contains("unexpected quote inside an unquoted field on row 2")
+        );
+    }
+
+    #[test]
+    fn delimited_writer_requires_one_table_block() {
+        let doc = Document {
+            meta: Metadata::default(),
+            blocks: vec![Block::Paragraph {
+                inlines: vec![Inline::Text("not a table".to_owned())],
+            }],
+        };
+        let err = CsvWriter
+            .write(&doc, Format::Csv)
+            .expect_err("CSV cannot represent arbitrary IDM blocks");
+        assert!(err.to_string().contains("exactly one table block"));
     }
 }

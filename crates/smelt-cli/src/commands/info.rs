@@ -92,7 +92,7 @@ fn run_stdin(args: &InfoArgs, theme: &Theme) -> Result<(), SmeltError> {
 
 /// lines/words/bytes for text formats only; `None` (JSON null) otherwise.
 fn text_stats(path: &Path, fmt: Format) -> Option<Stats> {
-    if !fmt.has_native_reader() {
+    if !has_text_stats(fmt) {
         return None;
     }
     let bytes = std::fs::read(path).ok()?;
@@ -100,7 +100,7 @@ fn text_stats(path: &Path, fmt: Format) -> Option<Stats> {
 }
 
 fn stats_from(bytes: &[u8], fmt: Format) -> Option<Stats> {
-    if !fmt.has_native_reader() {
+    if !has_text_stats(fmt) {
         return None;
     }
     let text = std::str::from_utf8(bytes).ok()?;
@@ -109,6 +109,10 @@ fn stats_from(bytes: &[u8], fmt: Format) -> Option<Stats> {
         words: text.split_whitespace().count(),
         bytes: bytes.len(),
     })
+}
+
+fn has_text_stats(fmt: Format) -> bool {
+    matches!(fmt, Format::Markdown | Format::Html | Format::Text)
 }
 
 struct Stats {

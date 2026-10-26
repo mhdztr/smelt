@@ -116,6 +116,19 @@ fn single_file_converts_to_html() {
 }
 
 #[test]
+fn csv_converts_to_html_as_one_table() {
+    let dir = TempDir::new("csv-html");
+    let input = dir.file("table.csv", "name,note\nAlice,\"says, hi\"\n");
+    let out = run(["convert", input.to_str().unwrap(), "-t", "html"]);
+
+    assert_eq!(code(&out), 0, "stderr: {}", stderr_of(&out));
+    let html = fs::read_to_string(dir.path().join("table.html")).expect("output file written");
+    assert!(html.contains("<th>name</th>"), "{html}");
+    assert!(html.contains("<td>Alice</td>"), "{html}");
+    assert!(html.contains("says, hi"), "{html}");
+}
+
+#[test]
 fn output_extension_infers_the_target_format() {
     // docs/cli.md resolution table: with no `-t`, a known extension on `-o`
     // infers the format. Regression test: the inference path was missing and
@@ -837,6 +850,18 @@ fn info_json_shape_is_stable() {
         assert!(pdf_json[key].is_null(), "{key} is null for a PDF");
     }
     assert!(pdf_json["size_bytes"].is_u64(), "size known for a file");
+
+    // CSV/TSV are native table formats, but line/word/byte stats are reserved
+    // for textual document formats in the documented `info` shape.
+    let csv = dir.file("table.csv", "name,note\nAlice,hello\n");
+    let csv_out = run(["info", csv.to_str().unwrap(), "--json"]);
+    assert_eq!(code(&csv_out), 0, "stderr: {}", stderr_of(&csv_out));
+    let csv_json: serde_json::Value =
+        serde_json::from_str(&stdout_of(&csv_out)).expect("valid CSV JSON");
+    assert_eq!(csv_json["format"], "Csv");
+    for key in ["lines", "words", "bytes"] {
+        assert!(csv_json[key].is_null(), "{key} is null for a CSV table");
+    }
 }
 
 #[test]

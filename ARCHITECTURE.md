@@ -12,7 +12,8 @@
                          v
                  +---------------+
                  |  smelt-core   |  IDM, Reader/Writer traits, native
-                 |               |  converters (md, html, txt in M0)
+                  |               |  converters (md, html, txt in M0;
+                  |               |  csv, tsv in M1)
                  +-------+-------+
                          |
                          v

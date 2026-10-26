@@ -99,14 +99,20 @@ impl Format {
         })
     }
 
-    /// Formats smelt can parse natively in v0 (pure Rust, no external tool).
+    /// Formats smelt can parse natively without an external engine.
     pub fn has_native_reader(self) -> bool {
-        matches!(self, Format::Markdown | Format::Html | Format::Text)
+        matches!(
+            self,
+            Format::Markdown | Format::Html | Format::Text | Format::Csv | Format::Tsv
+        )
     }
 
-    /// Formats smelt can write natively in v0.
+    /// Formats smelt can write natively without an external engine.
     pub fn has_native_writer(self) -> bool {
-        matches!(self, Format::Markdown | Format::Html | Format::Text)
+        matches!(
+            self,
+            Format::Markdown | Format::Html | Format::Text | Format::Csv | Format::Tsv
+        )
     }
 }
 
@@ -743,7 +749,7 @@ mod tests {
         assert_eq!(Format::from_name("pdf"), Some(Format::Pdf));
         assert_eq!(Format::from_name("docx"), Some(Format::Docx));
         assert_eq!(Format::from_name("nope"), None);
-        for name in ["md", "html", "txt", "pdf", "docx", "epub", "csv"] {
+        for name in ["md", "html", "txt", "pdf", "docx", "epub", "csv", "tsv"] {
             assert_eq!(
                 Format::from_name(name).map(|f| f.ext()),
                 Some(name),
@@ -757,6 +763,8 @@ mod tests {
         assert!(Format::Markdown.has_native_reader());
         assert!(Format::Html.has_native_writer());
         assert!(Format::Text.has_native_reader());
+        assert!(Format::Csv.has_native_reader());
+        assert!(Format::Tsv.has_native_writer());
         assert!(!Format::Docx.has_native_reader());
         assert!(!Format::Pdf.has_native_writer());
         assert!(!Format::Unknown.has_native_reader());

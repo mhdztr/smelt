@@ -10,7 +10,7 @@ required.
 | Markdown (GFM/CommonMark) | yes | yes | native | M0 | comrak; tables, strikethrough, autolinks on; tasklists degrade (see lossy list) |
 | HTML | yes | yes | native | M0 | scraper/html5ever read; hand-rolled serializer write; malformed input auto-repaired (lossy) |
 | Plain text | yes | yes | native | M0 | blank-line paragraph splitting on read; minimal structure on write |
-| CSV / TSV | yes | yes | native | M1 | each file becomes a single IDM table |
+| CSV / TSV | yes | yes | native | M1 | first record is the header; each file becomes one strict IDM table; RFC-4180-style quoting |
 | EPUB | yes | yes | native | M1 | zip + XHTML spine; reuses the HTML converter |
 | DOCX | yes | yes | LibreOffice (optional) | M1 | via warm soffice pool |
 | ODT | yes | yes | LibreOffice (optional) | M1 | via warm soffice pool |
@@ -112,3 +112,8 @@ Magic bytes first; extension is only a tiebreak/disambiguator.
 - **Raw HTML blocks in Markdown**: parsed through the same fragment walker
   as standalone HTML documents (`formats::html::fragment_blocks`), so raw
   HTML in Markdown inherits HTML's repair and whitespace rules.
+- **CSV / TSV shape**: the first record is the IDM table header and every later
+  record must have the same number of fields. Metadata and non-table blocks
+  have no delimited representation; the writer rejects documents that are not
+  exactly one table. Inline styling markers are rendered as cell text and
+  link destinations are appended as `text (destination)`.

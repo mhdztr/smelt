@@ -31,23 +31,29 @@ pub trait Writer: Send + Sync {
 }
 
 /// The reader for a format, if smelt has a native one (M0: markdown, html,
-/// text). `None` means unsupported -- the CLI maps that to exit code 3.
+/// text; M1: csv, tsv). `None` means unsupported -- the CLI maps that to exit
+/// code 3.
 pub fn reader_for(fmt: Format) -> Option<&'static dyn Reader> {
     match fmt {
         Format::Markdown => Some(&formats::markdown::MarkdownReader),
         Format::Html => Some(&formats::html::HtmlReader),
         Format::Text => Some(&formats::text::TextReader),
+        Format::Csv => Some(&formats::csv::CsvReader),
+        Format::Tsv => Some(&formats::tsv::TsvReader),
         _ => None,
     }
 }
 
 /// The writer for a format, if smelt has a native one (M0: markdown, html,
-/// text). `None` means unsupported -- the CLI maps that to exit code 3.
+/// text; M1: csv, tsv). `None` means unsupported -- the CLI maps that to exit
+/// code 3.
 pub fn writer_for(fmt: Format) -> Option<&'static dyn Writer> {
     match fmt {
         Format::Markdown => Some(&formats::markdown::MarkdownWriter),
         Format::Html => Some(&formats::html::HtmlWriter),
         Format::Text => Some(&formats::text::TextWriter),
+        Format::Csv => Some(&formats::csv::CsvWriter),
+        Format::Tsv => Some(&formats::tsv::TsvWriter),
         _ => None,
     }
 }
@@ -75,7 +81,13 @@ mod tests {
 
     #[test]
     fn dispatch_covers_native_formats_only() {
-        for fmt in [Format::Markdown, Format::Html, Format::Text] {
+        for fmt in [
+            Format::Markdown,
+            Format::Html,
+            Format::Text,
+            Format::Csv,
+            Format::Tsv,
+        ] {
             assert!(reader_for(fmt).is_some(), "reader for {fmt:?}");
             assert!(writer_for(fmt).is_some(), "writer for {fmt:?}");
         }
@@ -89,8 +101,6 @@ mod tests {
             Format::Pptx,
             Format::Epub,
             Format::Rtf,
-            Format::Csv,
-            Format::Tsv,
             Format::Unknown,
         ] {
             assert!(reader_for(fmt).is_none(), "reader for {fmt:?}");

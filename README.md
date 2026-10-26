@@ -18,10 +18,10 @@ reader or one writer, not N x M converters.
 - **Honest output**: fidelity reporting, actionable errors, documented exit
   codes, clean Unicode UI with automatic ASCII fallback.
 
-Status: **M0** -- native Markdown/HTML/plain-text conversion, magic-byte
-format detection, `convert`, `info`, `doctor`, and `completions`. The full
-roadmap lives in [PLAN.md](PLAN.md); the full format matrix in
-[FORMATS.md](FORMATS.md).
+Status: **M1 in progress** -- native Markdown/HTML/plain-text and CSV/TSV
+conversion, magic-byte format detection, `convert`, `info`, `doctor`, and
+`completions`. The full roadmap lives in [PLAN.md](PLAN.md); the full format
+matrix in [FORMATS.md](FORMATS.md).
 
 ## Install
 

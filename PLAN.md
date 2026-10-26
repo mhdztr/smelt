@@ -50,6 +50,10 @@ Native Rust conversion for text formats, detection, CLI core.
 
 ### M1 -- office formats via warm LibreOffice pool
 
+Progress: native CSV/TSV table conversion is implemented; the remaining M1
+work is the warm LibreOffice pool, recursive batch traversal, EPUB, and the
+content-hash cache.
+
 - Persistent headless LibreOffice pool (request queue, health checks, idle
   shutdown); `smelt doctor` validates pool preconditions.
 - docx/odt/pptx/xlsx <-> IDM via soffice; CSV/TSV readers/writers natively;

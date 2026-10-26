@@ -105,7 +105,11 @@ impl Converter {
                 }
                 NodeValue::List(list) => {
                     let ordered = matches!(list.list_type, ListType::Ordered);
-                    let start = if ordered { (list.start.max(1) as u64).min(u64::MAX / 2) } else { 0 };
+                    let start = if ordered {
+                        (list.start.max(1) as u64).min(u64::MAX / 2)
+                    } else {
+                        0
+                    };
                     let items = child.children().map(|item| self.blocks(item)).collect();
                     out.push(Block::List {
                         ordered,

@@ -70,7 +70,7 @@ inputs use a directory (batch mode).
 | Flag | Meaning |
 | --- | --- |
 | `[INPUT]` | file, directory, or `-` for stdin. Default: `-` when stdin is not a terminal, else usage error |
-| `-t`, `--to <FMT>` | target format name (`md`, `html`, `txt`, ...). Required for stdin and directory input |
+| `-t`, `--to <FMT>` | target format name (`md`, `html`, `txt`, `csv`, `tsv`, ...). Required for stdin and directory input |
 | `-o`, `--output <PATH>` | output file, or directory in batch mode; `-` for stdout |
 | `-q`, `--quiet` | suppress progress, per-file success lines, and the summary box; errors still print |
 | `-v`, `--verbose` | extra detail (detection evidence per file in batch mode) |
@@ -204,6 +204,15 @@ One line, actionable, exit code matched to cause:
 ✗ no such file: /nonexistent.md        (exit 4)
 ```
 
+### CSV and TSV table shape
+
+The native CSV and TSV readers treat the first record as the IDM table header
+and require every later record to have the same field count. Quoted fields may
+contain delimiters, quotes, and newlines; doubled quotes inside a quoted field
+represent one literal quote. The writer accepts exactly one IDM `Table` block;
+attempting to write a paragraph, multiple blocks, or a ragged table returns a
+serialization error instead of silently dropping data.
+
 ## `smelt info`
 
 ```
@@ -229,11 +238,11 @@ bytes     3079
 
 `--json` object: `{"path": ..., "format": ..., "confidence": ...,
 "evidence": ..., "size_bytes": ..., "lines": ..., "words": ...,
-"bytes": ...}` -- `lines`/`words`/`bytes` are `null` for formats without a
-native reader (for example PDF, DOCX, and CSV), `size_bytes` is `null` for
-stdin (unknown until read). Exit codes: 0 ok, 1 input exists but cannot be
-read (permission denied, directory), 4 missing file (the path does not
-exist).
+"bytes": ...}` -- `lines`/`words`/`bytes` are `null` for formats without
+native text statistics (for example PDF, DOCX, CSV, and TSV), `size_bytes` is
+`null` for stdin (unknown until read). Exit codes: 0 ok, 1 input exists but
+cannot be read (permission denied, directory), 4 missing file (the path does
+not exist).
 
 On any error, `--json` writes **nothing to stdout**; the usual human line
 (for example `✗ no such file: /nope.md`, or the ASCII `[fail] ...`) goes to
