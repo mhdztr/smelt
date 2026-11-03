@@ -5,6 +5,8 @@
 use crate::SmeltError;
 use crate::engine::{ENGINES, probe};
 use crate::ui::Theme;
+use smelt_formats::pool::EnginePool;
+use smelt_formats::{SofficePool, check_soffice_preconditions};
 
 /// Name column width from DESIGN.md's normative sample (`soffice` padded
 /// so every path starts in the same column).
@@ -23,6 +25,26 @@ pub fn run(theme: &Theme) -> Result<(), SmeltError> {
             (None, _) => (false, "not found (optional)".to_string()),
         };
         println!("{}", row(theme, found, engine.name, &detail));
+    }
+
+    // Pool preconditions (M1)
+    let pre = check_soffice_preconditions();
+    let pool = SofficePool::new();
+    let health = pool.health();
+    let (pool_ok, pool_detail) = match health {
+        Ok(h) => {
+            if h.ok {
+                (true, theme.dim(&format!("{} workers ready", h.workers)))
+            } else {
+                let msg = h.message.unwrap_or_else(|| "no workers".to_string());
+                (false, msg)
+            }
+        }
+        Err(e) => (false, format!("error: {e}")),
+    };
+    println!("{}", row(theme, pool_ok, "soffice-pool", &pool_detail));
+    if !pre.ok && pool_ok {
+        // shouldn't happen
     }
 
     println!();
