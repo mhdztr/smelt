@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/smelt-detect", "crates/smelt-core", "crates/smelt-cli"]
+members = ["crates/smelt-detect", "crates/smelt-core", "crates/smelt-formats", "crates/smelt-cli"]
 resolver = "2"
 
 [workspace.package]

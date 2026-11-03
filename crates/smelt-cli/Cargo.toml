@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 smelt-core = { path = "../smelt-core" }
+smelt-formats = { path = "../smelt-formats" }
 smelt-detect = { path = "../smelt-detect" }
 clap = { version = "4", features = ["derive", "string"] }
 clap_complete = "4"
