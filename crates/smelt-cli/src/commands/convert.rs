@@ -498,6 +498,16 @@ fn convert_batch_file(path: &Path, rel: &Path, out_dir: &Path, target: Format) -
     let out_path = batch_out_path(path, rel, out_dir, target);
     let out_name = file_name(&out_path);
 
+    if let Some(parent) = out_path.parent()
+        && !parent.as_os_str().is_empty()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        return FileOutcome::Failed {
+            message: format!("write {} ({e})", out_path.display()),
+            unsupported: false,
+        };
+    }
+
     let detection = match detect_path(path) {
         Ok(d) => d,
         Err(e) => {
