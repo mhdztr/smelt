@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use rayon::prelude::*;
+use walkdir::WalkDir;
 
 use smelt_core::{Format, ReadError, WriteError, read_document, reader_for, writer_for};
 use smelt_detect::{detect, detect_path};
@@ -209,6 +210,9 @@ fn run_file(args: &ConvertArgs, theme: &Theme, input: &Path) -> Result<(), Smelt
 
 /// Batch: every regular file directly inside `input`, parallel (rayon),
 /// output into `-o` directory. Non-recursive in M0 (docs/cli.md).
+/// Batch: every regular file in `input`, parallel (rayon), output into `-o` directory.
+/// Non-recursive by default; with `-r`/`--recursive` traverses subdirectories and
+/// mirrors the relative structure under the output directory.
 fn run_batch(
     args: &ConvertArgs,
     theme: &Theme,
@@ -235,18 +239,55 @@ fn run_batch(
             out_dir.display()
         )));
     }
-    let mut files = Vec::new();
-    let entries = std::fs::read_dir(input)
-        .map_err(|e| SmeltError::new(1, format!("failed: read {} ({e})", input.display())))?;
-    for entry in entries.flatten() {
-        let name = entry.file_name();
-        let hidden = name.to_string_lossy().starts_with('.');
-        if hidden || !entry.path().is_file() {
-            continue;
+
+    let mut files: Vec<(PathBuf, PathBuf)> = Vec::new();
+    if args.recursive {
+        for entry in WalkDir::new(input)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|e| {
+                let name = e.file_name().to_string_lossy();
+                if name.starts_with('.') && e.path() != input {
+                    return false;
+                }
+                true
+            })
+        {
+            let entry = match entry {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy();
+            if name.starts_with('.') {
+                continue;
+            }
+            let entry_path = entry.path().to_path_buf();
+            let rel = entry_path
+                .strip_prefix(input)
+                .unwrap_or(&entry_path)
+                .to_path_buf();
+            files.push((entry_path, rel));
         }
-        files.push(entry.path());
+    } else {
+        let entries = std::fs::read_dir(input)
+            .map_err(|e| SmeltError::new(1, format!("failed: read {} ({e})", input.display())))?;
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let hidden = name.to_string_lossy().starts_with('.');
+            if hidden || !entry.path().is_file() {
+                continue;
+            }
+            let path = entry.path();
+            files.push((
+                path.clone(),
+                PathBuf::from(path.file_name().unwrap_or_default()),
+            ));
+        }
     }
-    files.sort();
+    files.sort_by(|a, b| a.1.cmp(&b.1));
 
     // Collision check before any write: two inputs with the same stem and a
     // different extension (`notes.md` + `notes.html`) map to the same output
@@ -265,7 +306,7 @@ fn run_batch(
     let bars: Vec<indicatif::ProgressBar> = if use_bars {
         files
             .iter()
-            .map(|path| {
+            .map(|(path, _)| {
                 let bar = multi.add(indicatif::ProgressBar::new(1));
                 bar.set_style(
                     indicatif::ProgressStyle::with_template("{msg}")
@@ -283,8 +324,8 @@ fn run_batch(
     let outcomes: Vec<FileOutcome> = files
         .par_iter()
         .enumerate()
-        .map(|(index, path)| {
-            let outcome = convert_batch_file(path, &out_dir, target);
+        .map(|(index, (path, rel))| {
+            let outcome = convert_batch_file(path, rel, &out_dir, target);
             let name = file_name(path);
             if use_bars {
                 bars[index].finish_with_message(outcome.line(&name, args.verbose));
@@ -410,14 +451,18 @@ fn paths_are_same(a: &Path, b: &Path) -> bool {
 }
 
 /// The output path for one batch input: the output directory plus the input
-/// stem and the target extension. Single source of truth for the mapping
-/// [`check_batch_collisions`] validates.
-fn batch_out_path(path: &Path, out_dir: &Path, target: Format) -> PathBuf {
-    out_dir.join(format!(
-        "{}.{}",
-        path.file_stem().and_then(|s| s.to_str()).unwrap_or("out"),
-        target.ext()
-    ))
+/// stem and the target extension, mirroring relative structure. Single source
+/// of truth for the mapping [`check_batch_collisions`] validates.
+fn batch_out_path(_path: &Path, rel: &Path, out_dir: &Path, target: Format) -> PathBuf {
+    let mut out = out_dir.to_path_buf();
+    if let Some(parent) = rel.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        out.push(parent);
+    }
+    let stem = rel.file_stem().and_then(|s| s.to_str()).unwrap_or("out");
+    out.push(format!("{}.{}", stem, target.ext()));
+    out
 }
 
 /// Refuse a batch whose inputs would map to the same output file (exit 2,
@@ -427,20 +472,20 @@ fn batch_out_path(path: &Path, out_dir: &Path, target: Format) -> PathBuf {
 /// directory with the source extension), for the same reason the single-file
 /// path does.
 fn check_batch_collisions(
-    files: &[PathBuf],
+    files: &[(PathBuf, PathBuf)],
     out_dir: &Path,
     target: Format,
 ) -> Result<(), SmeltError> {
-    let mut seen: std::collections::BTreeMap<PathBuf, &Path> = std::collections::BTreeMap::new();
-    for path in files {
-        let out_path = batch_out_path(path, out_dir, target);
+    let mut seen: std::collections::BTreeMap<PathBuf, PathBuf> = std::collections::BTreeMap::new();
+    for (path, rel) in files {
+        let out_path = batch_out_path(path, rel, out_dir, target);
         refuse_in_place(path, &out_path)?;
-        if let Some(previous) = seen.insert(out_path.clone(), path.as_path()) {
+        if let Some(previous) = seen.insert(out_path.clone(), rel.clone()) {
             return Err(SmeltError::usage(format!(
                 "batch output collision: {} and {} both map to {}; \
                  rename one input or convert them separately",
                 previous.display(),
-                path.display(),
+                rel.display(),
                 out_path.display()
             )));
         }
@@ -448,9 +493,9 @@ fn check_batch_collisions(
     Ok(())
 }
 
-fn convert_batch_file(path: &Path, out_dir: &Path, target: Format) -> FileOutcome {
+fn convert_batch_file(path: &Path, rel: &Path, out_dir: &Path, target: Format) -> FileOutcome {
     let in_name = file_name(path);
-    let out_path = batch_out_path(path, out_dir, target);
+    let out_path = batch_out_path(path, rel, out_dir, target);
     let out_name = file_name(&out_path);
 
     let detection = match detect_path(path) {
@@ -529,10 +574,12 @@ fn write_output_file(path: &Path, out: &[u8]) -> Result<(), SmeltError> {
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()
         && !parent.exists()
+        && let Err(e) = std::fs::create_dir_all(parent)
     {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            SmeltError::new(1, format!("failed: create {} ({e})", parent.display()))
-        })?;
+        return Err(SmeltError::new(
+            1,
+            format!("failed: create {} ({e})", parent.display()),
+        ));
     }
     std::fs::write(path, out)
         .map_err(|e| SmeltError::new(1, format!("failed: write {} ({e})", path.display())))

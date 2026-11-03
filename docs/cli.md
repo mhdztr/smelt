@@ -72,6 +72,7 @@ inputs use a directory (batch mode).
 | `[INPUT]` | file, directory, or `-` for stdin. Default: `-` when stdin is not a terminal, else usage error |
 | `-t`, `--to <FMT>` | target format name (`md`, `html`, `txt`, `csv`, `tsv`, ...). Required for stdin and directory input |
 | `-o`, `--output <PATH>` | output file, or directory in batch mode; `-` for stdout |
+| `-r`, `--recursive` | recurse into subdirectories when converting a directory (mirrors relative structure) |
 | `-q`, `--quiet` | suppress progress, per-file success lines, and the summary box; errors still print |
 | `-v`, `--verbose` | extra detail (detection evidence per file in batch mode) |
 | `--color <WHEN>` | see global options |
@@ -152,11 +153,12 @@ source-format rule.
 
 ### Batch mode
 
-Directory input converts every regular file directly inside it
-(**non-recursive in M0**; `-r/--recursive` is planned). Hidden files
-(dot-prefixed) and subdirectories are skipped. Each file is converted in
-parallel (rayon). Output files keep their stem and get the target
-extension: `notes.2026.md` -> `notes.2026.html`.
+Directory input converts every regular file inside it. By default it is
+non-recursive (only the top level); pass `-r`/`--recursive` to traverse
+subdirectories and mirror the relative directory structure under the output
+directory. Hidden files (dot-prefixed) and hidden directories are skipped.
+Each file is converted in parallel (rayon). Output files keep their stem and
+get the target extension: `notes.2026.md` -> `notes.2026.html`.
 
 Two inputs whose stems collide (`notes.md` and `notes.html`, both mapping
 to `notes.txt`) would map to the **same** output file. Because the writes
@@ -291,8 +293,7 @@ completion script to stdout (pipe into the shell's completion dir, e.g.
 
 | Command | Milestone | Purpose |
 | --- | --- | --- |
-| `smelt watch` | M3 | watch a directory and convert on change (`-r` recursive flag arrives with batch mode improvements in M1) |
+| `smelt watch` | M3 | watch a directory and convert on change |
 | `smelt diff` | M3 | semantic diff of two documents via the IDM |
 | `smelt ocr` | M3 | OCR images and scanned PDFs via Tesseract |
 | `smelt man` | M4 | emit the man page (clap_mangen) |
-| `smelt convert -r` | M1 | recursive batch traversal |

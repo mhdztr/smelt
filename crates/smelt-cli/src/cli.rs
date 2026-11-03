@@ -88,6 +88,10 @@ pub struct ConvertArgs {
     /// Extra detail (detection evidence per file in batch mode)
     #[arg(short, long)]
     pub verbose: bool,
+
+    /// Recurse into subdirectories when converting a directory
+    #[arg(short = 'r', long = "recursive")]
+    pub recursive: bool,
 }
 
 #[derive(Debug, Args)]
