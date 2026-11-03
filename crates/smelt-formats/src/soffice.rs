@@ -1,10 +1,11 @@
 //! LibreOffice/soffice pool and precondition checks.
 
-use std::path::PathBuf;
-use std::process::Command;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, Instant};
 
 use crate::error::{PoolError, PoolResult};
 use crate::pool::{EnginePool, PoolHealth};
@@ -18,8 +19,6 @@ pub struct SofficePreconditions {
 }
 
 fn find_soffice() -> Option<PathBuf> {
-    // CLI is responsible for env, but formats crate needs to find it too
-    // Try common names
     if let Ok(path) = std::env::var("SMELT_SOFFICE") {
         let p = PathBuf::from(path);
         if p.exists() {
@@ -37,8 +36,8 @@ fn find_soffice() -> Option<PathBuf> {
 fn get_version(soffice: &PathBuf) -> Option<String> {
     let out = Command::new(soffice)
         .args(["--version"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .output()
         .ok()?;
     let s = String::from_utf8_lossy(&out.stdout);
@@ -84,11 +83,24 @@ pub fn check_soffice_preconditions() -> SofficePreconditions {
     }
 }
 
+struct Worker {
+    child: Option<Child>,
+    profile_dir: PathBuf,
+    last_used: Instant,
+    failures: u32,
+}
+
+struct PoolState {
+    workers: Vec<Worker>,
+    shutdown: bool,
+    idle_timeout: Duration,
+}
+
 pub struct SofficePool {
-    workers: Arc<Mutex<Vec<()>>>,
-    shutdown: Arc<AtomicBool>,
-    last_activity: Arc<Mutex<Instant>>,
-    started: Arc<AtomicBool>,
+    state: Arc<Mutex<PoolState>>,
+    cv: Arc<Condvar>,
+    shutdown_flag: Arc<AtomicBool>,
+    soffice_path: Option<PathBuf>,
 }
 
 impl Default for SofficePool {
@@ -99,11 +111,16 @@ impl Default for SofficePool {
 
 impl SofficePool {
     pub fn new() -> Self {
+        let pre = check_soffice_preconditions();
         Self {
-            workers: Arc::new(Mutex::new(Vec::new())),
-            shutdown: Arc::new(AtomicBool::new(false)),
-            last_activity: Arc::new(Mutex::new(Instant::now())),
-            started: Arc::new(AtomicBool::new(false)),
+            state: Arc::new(Mutex::new(PoolState {
+                workers: Vec::new(),
+                shutdown: false,
+                idle_timeout: Duration::from_secs(30),
+            })),
+            cv: Arc::new(Condvar::new()),
+            shutdown_flag: Arc::new(AtomicBool::new(false)),
+            soffice_path: pre.path,
         }
     }
 
@@ -112,21 +129,24 @@ impl SofficePool {
         if !pre.ok {
             return Err(PoolError::Message(format!("soffice pool: {}", pre.message)));
         }
-        if self.started.swap(true, Ordering::SeqCst) {
-            return Ok(());
-        }
-        // Placeholder: real worker pool will be implemented when wiring conversions
-        let mut workers = self.workers.lock().unwrap();
-        workers.push(());
-        *self.last_activity.lock().unwrap() = Instant::now();
+        // For now, ensure at least one worker slot concept is "started"
+        // Real workers will be spawned on demand
         Ok(())
     }
 
     pub fn stop(&self) {
-        self.shutdown.store(true, Ordering::SeqCst);
-        self.started.store(false, Ordering::SeqCst);
-        let mut workers = self.workers.lock().unwrap();
-        workers.clear();
+        self.shutdown_flag.store(true, Ordering::SeqCst);
+        let mut state = self.state.lock().unwrap();
+        state.shutdown = true;
+        for w in state.workers.iter_mut() {
+            if let Some(mut child) = w.child.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            let _ = fs::remove_dir_all(&w.profile_dir);
+        }
+        state.workers.clear();
+        self.cv.notify_all();
     }
 }
 
@@ -144,8 +164,9 @@ impl EnginePool for SofficePool {
                 message: Some(format!("soffice pool: no workers. {}", pre.message)),
             });
         }
-        let workers = self.workers.lock().unwrap().len();
-        if !self.started.load(Ordering::SeqCst) || workers == 0 {
+        let state = self.state.lock().unwrap();
+        let workers = state.workers.iter().filter(|w| w.child.is_some()).count();
+        if workers == 0 {
             Ok(PoolHealth {
                 ok: false,
                 workers: 0,
