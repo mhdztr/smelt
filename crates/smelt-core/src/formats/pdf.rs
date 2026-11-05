@@ -15,10 +15,12 @@ pub struct PdfWriter;
 
 impl Reader for PdfReader {
     fn read(&self, input: &[u8], _fmt: Format) -> Result<Document, ReadError> {
-        let doc = pdf::file::FileOptions::cached().load(input).map_err(|e| ReadError::Parse {
-            format: "pdf".to_string(),
-            message: format!("pdf parse error: {e}"),
-        })?;
+        let doc = pdf::file::FileOptions::cached()
+            .load(input)
+            .map_err(|e| ReadError::Parse {
+                format: "pdf".to_string(),
+                message: format!("pdf parse error: {e}"),
+            })?;
         let num_pages = doc.num_pages();
         if num_pages == 0 {
             return Err(ReadError::Parse {
@@ -36,7 +38,7 @@ impl Reader for PdfReader {
                         let _ = objects;
                     }
                     // Attempt to extract strings
-                    let mut extracted = String::new();
+                    let extracted = String::new();
                     if let Some(ref contents) = page.contents {
                         // Try to decode streams roughly
                         let _ = contents;
@@ -160,7 +162,7 @@ impl Reader for PdfReader {
 
 impl Writer for PdfWriter {
     fn write(&self, doc: &Document, _fmt: Format) -> Result<Vec<u8>, WriteError> {
-        use lopdf::{Dictionary, Document as LopdfDoc, Object, Stream};
+        use lopdf::{Dictionary, Document as LopdfDoc, Stream};
 
         let mut doc_pdf = LopdfDoc::with_version("1.5");
         let pages_id = doc_pdf.new_object_id();
@@ -179,15 +181,22 @@ impl Writer for PdfWriter {
             text.push_str(&block_to_text(block));
             text.push_str("\n\n");
         }
-        let escaped = text.replace('\\', "\\\\").replace('(', "\\(").replace(')', "\\)");
+        let escaped = text
+            .replace('\\', "\\\\")
+            .replace('(', "\\(")
+            .replace(')', "\\)");
         let content_str = format!("BT /F1 12 Tf 50 750 Td ({}) Tj ET", escaped);
-        let content_id = doc_pdf.add_object(Stream::new(Dictionary::new(), content_str.into_bytes()));
+        let content_id =
+            doc_pdf.add_object(Stream::new(Dictionary::new(), content_str.into_bytes()));
 
         let page_id = doc_pdf.add_object(Dictionary::from_iter(vec![
             ("Type", "Page".into()),
             ("Parent", pages_id.into()),
             ("Contents", content_id.into()),
-            ("MediaBox", vec![0.into(), 0.into(), 595.into(), 842.into()].into()),
+            (
+                "MediaBox",
+                vec![0.into(), 0.into(), 595.into(), 842.into()].into(),
+            ),
             ("Resources", resources_id.into()),
         ]));
         let pages_id_obj = doc_pdf.add_object(Dictionary::from_iter(vec![
@@ -201,10 +210,12 @@ impl Writer for PdfWriter {
         ]));
         doc_pdf.trailer.set("Root", catalog_id);
         let mut buffer = Vec::new();
-        doc_pdf.save_to(&mut buffer).map_err(|e| WriteError::Serialize {
-            format: "pdf".to_string(),
-            message: format!("pdf write error: {e}"),
-        })?;
+        doc_pdf
+            .save_to(&mut buffer)
+            .map_err(|e| WriteError::Serialize {
+                format: "pdf".to_string(),
+                message: format!("pdf write error: {e}"),
+            })?;
         Ok(buffer)
     }
 }
