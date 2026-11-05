@@ -28,6 +28,7 @@ fn is_soffice_format(fmt: Format) -> bool {
 }
 
 use crate::SmeltError;
+use crate::cache::Cache;
 use crate::cli::ConvertArgs;
 use crate::commands::{io_error, io_reason};
 use crate::ui::{ColorChoice, Theme, human_bytes, human_duration};
@@ -177,20 +178,50 @@ fn run_file(args: &ConvertArgs, theme: &Theme, input: &Path) -> Result<(), Smelt
 
     let bytes = std::fs::read(input)
         .map_err(|e| SmeltError::new(1, format!("failed: read {} ({e})", input.display())))?;
+    let cache = Cache::new();
+    let engine_version = env!("CARGO_PKG_VERSION");
 
     let started = Instant::now();
     // Try native first, fallback to soffice pool for office formats
-    let (doc, out) = if reader_for(source).is_some() && writer_for(target).is_some() {
-        let doc = read_document(source, &bytes).map_err(|e| {
-            SmeltError::new(
-                exit_code_for(&e),
-                format!(
-                    "failed: {} -> {} ({e})",
-                    input.display(),
-                    out_path.display()
-                ),
-            )
-        })?;
+    let (_doc, out) = if reader_for(source).is_some() && writer_for(target).is_some() {
+        let doc = if let Some(ref c) = cache {
+            if let Some(cached) = c.get_document(
+                &bytes,
+                &format!("{}:{}", source.ext(), target.ext()),
+                engine_version,
+            ) {
+                cached
+            } else {
+                let d = read_document(source, &bytes).map_err(|e| {
+                    SmeltError::new(
+                        exit_code_for(&e),
+                        format!(
+                            "failed: {} -> {} ({e})",
+                            input.display(),
+                            out_path.display()
+                        ),
+                    )
+                })?;
+                let _ = c.put_document(
+                    &bytes,
+                    &format!("{}:{}", source.ext(), target.ext()),
+                    engine_version,
+                    &d,
+                );
+                d
+            }
+        } else {
+            read_document(source, &bytes).map_err(|e| {
+                SmeltError::new(
+                    exit_code_for(&e),
+                    format!(
+                        "failed: {} -> {} ({e})",
+                        input.display(),
+                        out_path.display()
+                    ),
+                )
+            })?
+        };
         let out = target_writer(target)?.write(&doc, target).map_err(|e| {
             SmeltError::new(
                 exit_code_for_write(&e),
@@ -275,6 +306,7 @@ fn run_file(args: &ConvertArgs, theme: &Theme, input: &Path) -> Result<(), Smelt
                 meta: smelt_core::idm::Metadata::default(),
                 blocks: vec![],
             };
+            let _ = &doc;
             (doc, out)
         } else {
             let doc = read_document(source, &bytes).map_err(|e| {

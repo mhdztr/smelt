@@ -1,7 +1,8 @@
+#![allow(dead_code, unused_imports)]
 //! LibreOffice/soffice pool and precondition checks.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};

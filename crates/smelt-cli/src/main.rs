@@ -2,6 +2,7 @@
 //! (docs/cli.md). Per AGENTS.md this crate (and only this crate) touches
 //! stdout/stderr, environment variables, and process exit.
 
+mod cache;
 mod cli;
 mod commands;
 mod engine;
