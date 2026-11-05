@@ -63,8 +63,8 @@ impl Reader for PdfReader {
             let mut result = String::new();
             let bytes = input;
             let mut i = 0;
-            while i < bytes.len().saturating_sub(2) {
-                if &bytes[i..i + 2] == b"(" {
+            while i < bytes.len() {
+                if bytes[i] == b'(' {
                     let mut j = i + 1;
                     let mut depth = 0;
                     while j < bytes.len() {
