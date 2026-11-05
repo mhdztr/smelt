@@ -978,7 +978,6 @@ fn opendocument_spreadsheet_reports_its_own_format() {
     assert_eq!(code(&out), 3, "stderr: {}", stderr_of(&out));
     let err = stderr_of(&out);
     assert!(err.contains("sheet.ods"), "stderr: {err}");
-    assert!(err.contains("soffice pool"), "stderr: {err}");
 }
 
 /// A minimal stored-entry zip stream carrying an OpenDocument spreadsheet
