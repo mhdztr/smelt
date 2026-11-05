@@ -1,106 +1,38 @@
-#![allow(dead_code, unused_imports)]
-//! LibreOffice/soffice pool and precondition checks.
+//! LibreOffice/soffice pool and preconditions.
 
+#![allow(dead_code, unused_imports)]
+
+use std::collections::VecDeque;
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use crate::error::{PoolError, PoolResult};
 use crate::pool::{EnginePool, PoolHealth};
+use crate::{PoolError, PoolResult};
 
-#[derive(Debug, Clone)]
-pub struct SofficePreconditions {
-    pub ok: bool,
-    pub path: Option<PathBuf>,
-    pub version: Option<String>,
-    pub message: String,
-}
-
-fn find_soffice() -> Option<PathBuf> {
-    if let Ok(path) = std::env::var("SMELT_SOFFICE") {
-        let p = PathBuf::from(path);
-        if p.exists() {
-            return Some(p);
-        }
-    }
-    for name in &["soffice", "soffice.bin", "libreoffice"] {
-        if let Ok(path) = which::which(name) {
-            return Some(path);
-        }
-    }
-    None
-}
-
-fn get_version(soffice: &PathBuf) -> Option<String> {
-    let out = Command::new(soffice)
-        .args(["--version"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .ok()?;
-    let s = String::from_utf8_lossy(&out.stdout);
-    let line = s.lines().next().unwrap_or("").trim();
-    if line.is_empty() {
-        let s2 = String::from_utf8_lossy(&out.stderr);
-        let line2 = s2.lines().next().unwrap_or("").trim();
-        if line2.is_empty() {
-            None
-        } else {
-            Some(line2.to_string())
-        }
-    } else {
-        Some(line.to_string())
-    }
-}
-
-pub fn check_soffice_preconditions() -> SofficePreconditions {
-    match find_soffice() {
-        Some(path) => match get_version(&path) {
-            Some(version) => SofficePreconditions {
-                ok: true,
-                path: Some(path),
-                version: Some(version),
-                message: "ready".to_string(),
-            },
-            None => SofficePreconditions {
-                ok: false,
-                path: Some(path),
-                version: None,
-                message: "soffice found but --version failed; check headless mode support"
-                    .to_string(),
-            },
-        },
-        None => SofficePreconditions {
-            ok: false,
-            path: None,
-            version: None,
-            message:
-                "soffice not found in PATH. Install LibreOffice for docx/odt/pptx/xlsx conversion."
-                    .to_string(),
-        },
-    }
-}
-
+#[derive(Debug)]
 struct Worker {
     child: Option<Child>,
-    profile_dir: PathBuf,
     last_used: Instant,
     failures: u32,
 }
 
+#[derive(Debug)]
 struct PoolState {
     workers: Vec<Worker>,
-    shutdown: bool,
+    max_workers: usize,
     idle_timeout: Duration,
+    user: Option<String>,
+    queue: VecDeque<()>,
 }
 
+#[derive(Debug)]
 pub struct SofficePool {
     state: Arc<Mutex<PoolState>>,
-    cv: Arc<Condvar>,
-    shutdown_flag: Arc<AtomicBool>,
+    #[allow(dead_code)]
     soffice_path: Option<PathBuf>,
 }
 
@@ -116,38 +48,119 @@ impl SofficePool {
         Self {
             state: Arc::new(Mutex::new(PoolState {
                 workers: Vec::new(),
-                shutdown: false,
-                idle_timeout: Duration::from_secs(30),
+                max_workers: 4,
+                idle_timeout: Duration::from_secs(300),
+                user: pre.user,
+                queue: VecDeque::new(),
             })),
-            cv: Arc::new(Condvar::new()),
-            shutdown_flag: Arc::new(AtomicBool::new(false)),
-            soffice_path: pre.path,
+            soffice_path: pre.path.clone(),
         }
     }
 
-    pub fn start(&self) -> PoolResult<()> {
-        let pre = check_soffice_preconditions();
-        if !pre.ok {
-            return Err(PoolError::Message(format!("soffice pool: {}", pre.message)));
+    pub fn start(&self, workers: usize) -> PoolResult<()> {
+        let mut state = self.state.lock().unwrap();
+        let to_start = workers.min(state.max_workers).max(1);
+        for _ in 0..to_start {
+            state.workers.push(Worker {
+                child: None,
+                last_used: Instant::now(),
+                failures: 0,
+            });
         }
-        // For now, ensure at least one worker slot concept is "started"
-        // Real workers will be spawned on demand
         Ok(())
     }
 
     pub fn stop(&self) {
-        self.shutdown_flag.store(true, Ordering::SeqCst);
         let mut state = self.state.lock().unwrap();
-        state.shutdown = true;
         for w in state.workers.iter_mut() {
-            if let Some(mut child) = w.child.take() {
+            if let Some(ref mut child) = w.child {
                 let _ = child.kill();
                 let _ = child.wait();
             }
-            let _ = fs::remove_dir_all(&w.profile_dir);
+            w.child = None;
         }
         state.workers.clear();
-        self.cv.notify_all();
+    }
+
+    pub fn health_check(&self) -> PoolResult<PoolHealth> {
+        self.health()
+    }
+
+    pub fn shutdown_idle(&self) {
+        let mut state = self.state.lock().unwrap();
+        let now = Instant::now();
+        let timeout = state.idle_timeout;
+        state.workers.retain(|w| {
+            if w.child.is_none() {
+                return now.duration_since(w.last_used) < timeout;
+            }
+            true
+        });
+        if state.workers.is_empty() {
+            state.queue.clear();
+        }
+    }
+
+    pub fn recycle_unhealthy(&self) {
+        let mut state = self.state.lock().unwrap();
+        for w in state.workers.iter_mut() {
+            if w.failures >= 3 {
+                if let Some(ref mut child) = w.child {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                w.child = None;
+                w.failures = 0;
+            }
+        }
+        state
+            .workers
+            .retain(|w| w.child.is_some() || w.failures < 3);
+    }
+
+    pub fn enqueue_request(&self) {
+        let mut state = self.state.lock().unwrap();
+        state.queue.push_back(());
+    }
+
+    pub fn queue_depth(&self) -> usize {
+        let state = self.state.lock().unwrap();
+        state.queue.len()
+    }
+}
+
+#[derive(Debug)]
+pub struct Preconditions {
+    pub ok: bool,
+    pub message: String,
+    pub path: Option<PathBuf>,
+    pub user: Option<String>,
+}
+
+pub fn check_soffice_preconditions() -> Preconditions {
+    if let Ok(path) = which::which("soffice") {
+        return Preconditions {
+            ok: true,
+            message: "soffice found".to_string(),
+            path: Some(path),
+            user: std::env::var("USER").ok(),
+        };
+    }
+    for candidate in ["/usr/bin/soffice", "/usr/lib/libreoffice/program/soffice"] {
+        if std::path::Path::new(candidate).exists() {
+            return Preconditions {
+                ok: true,
+                message: "soffice found".to_string(),
+                path: Some(PathBuf::from(candidate)),
+                user: std::env::var("USER").ok(),
+            };
+        }
+    }
+    Preconditions {
+        ok: false,
+        message: "soffice not found in PATH".to_string(),
+        path: None,
+        user: std::env::var("USER").ok(),
     }
 }
 
@@ -168,10 +181,9 @@ impl EnginePool for SofficePool {
         let state = self.state.lock().unwrap();
         let workers = state.workers.iter().filter(|w| w.child.is_some()).count();
         if workers == 0 {
-            // If soffice is installed and preconditions pass, consider pool ready for on-demand use
             Ok(PoolHealth {
                 ok: true,
-                workers: 1,
+                workers: state.workers.len().max(1),
                 message: Some("ready".to_string()),
             })
         } else {
@@ -187,8 +199,6 @@ impl EnginePool for SofficePool {
         self.stop();
     }
 }
-
-use std::io::Write;
 
 #[derive(Debug)]
 pub struct ConversionResult {

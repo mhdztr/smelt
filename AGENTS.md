@@ -87,3 +87,6 @@ sync included.
 See `PERFORMANCE.md` for the numbered rules. Headlines: never spawn a
 subprocess per file; never block the UI thread on engine I/O; justify every
 new dependency against the ~5 ms startup budget.
+
+## Agent preference
+- Default: fast path for well-patterned extensions following existing codebase patterns. Use pipeline only for ambiguous/complex architectural work.
