@@ -1117,3 +1117,46 @@ fn a_closed_pipe_does_not_panic_completions() {
         "panicked on a closed pipe: {stderr}"
     );
 }
+
+#[test]
+fn recursive_batch_mirrors_paths() {
+    let dir = TempDir::new("recursive");
+    let sub = dir.path().join("subdir");
+    fs::create_dir_all(&sub).expect("mkdir");
+    fs::write(dir.path().join("a.md"), "# A\n").expect("write");
+    fs::write(sub.join("b.md"), "# B\n").expect("write");
+    let outdir = dir.path().join("out");
+    let out = run([
+        "convert",
+        dir.path().to_str().unwrap(),
+        "-r",
+        "-t",
+        "html",
+        "-o",
+        outdir.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out), 0, "stderr: {}", stderr_of(&out));
+    assert!(outdir.join("a.html").exists());
+    assert!(outdir.join("subdir").join("b.html").exists());
+}
+
+#[test]
+fn epub_roundtrip_via_cli() {
+    let dir = TempDir::new("epub");
+    let md = dir.file("in.md", "# Hello\n\nWorld\n");
+    let epub = dir.path().join("out.epub");
+    let out1 = run([
+        "convert",
+        md.to_str().unwrap(),
+        "-t",
+        "epub",
+        "-o",
+        epub.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out1), 0, "stderr: {}", stderr_of(&out1));
+    let out2 = run(["convert", epub.to_str().unwrap(), "-t", "md"]);
+    assert_eq!(code(&out2), 0, "stderr: {}", stderr_of(&out2));
+    let md2 = epub.with_extension("md");
+    let content = fs::read_to_string(&md2).expect("md written");
+    assert!(content.contains("Hello"));
+}
