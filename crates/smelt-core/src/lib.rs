@@ -40,6 +40,7 @@ pub fn reader_for(fmt: Format) -> Option<&'static dyn Reader> {
         Format::Text => Some(&formats::text::TextReader),
         Format::Csv => Some(&formats::csv::CsvReader),
         Format::Tsv => Some(&formats::tsv::TsvReader),
+        Format::Epub => Some(&formats::epub::EpubReader),
         _ => None,
     }
 }
@@ -54,6 +55,7 @@ pub fn writer_for(fmt: Format) -> Option<&'static dyn Writer> {
         Format::Text => Some(&formats::text::TextWriter),
         Format::Csv => Some(&formats::csv::CsvWriter),
         Format::Tsv => Some(&formats::tsv::TsvWriter),
+        Format::Epub => Some(&formats::epub::EpubWriter),
         _ => None,
     }
 }
@@ -87,6 +89,7 @@ mod tests {
             Format::Text,
             Format::Csv,
             Format::Tsv,
+            Format::Epub,
         ] {
             assert!(reader_for(fmt).is_some(), "reader for {fmt:?}");
             assert!(writer_for(fmt).is_some(), "writer for {fmt:?}");
@@ -99,7 +102,6 @@ mod tests {
             Format::Odp,
             Format::Xlsx,
             Format::Pptx,
-            Format::Epub,
             Format::Rtf,
             Format::Unknown,
         ] {

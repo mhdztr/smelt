@@ -7,6 +7,7 @@
 
 pub mod csv;
 mod delimited;
+pub mod epub;
 pub mod html;
 pub mod markdown;
 pub mod text;
