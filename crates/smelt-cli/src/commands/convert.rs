@@ -11,6 +11,21 @@ use walkdir::WalkDir;
 
 use smelt_core::{Format, ReadError, WriteError, read_document, reader_for, writer_for};
 use smelt_detect::{detect, detect_path};
+use smelt_formats::SofficePool;
+use smelt_formats::pool::EnginePool;
+
+fn is_soffice_format(fmt: Format) -> bool {
+    matches!(
+        fmt,
+        Format::Docx
+            | Format::Odt
+            | Format::Ods
+            | Format::Odp
+            | Format::Xlsx
+            | Format::Pptx
+            | Format::Rtf
+    )
+}
 
 use crate::SmeltError;
 use crate::cli::ConvertArgs;
@@ -164,26 +179,114 @@ fn run_file(args: &ConvertArgs, theme: &Theme, input: &Path) -> Result<(), Smelt
         .map_err(|e| SmeltError::new(1, format!("failed: read {} ({e})", input.display())))?;
 
     let started = Instant::now();
-    let doc = read_document(source, &bytes).map_err(|e| {
-        SmeltError::new(
-            exit_code_for(&e),
-            format!(
-                "failed: {} -> {} ({e})",
-                input.display(),
-                out_path.display()
-            ),
-        )
-    })?;
-    let out = target_writer(target)?.write(&doc, target).map_err(|e| {
-        SmeltError::new(
-            exit_code_for_write(&e),
-            format!(
-                "failed: {} -> {} ({e})",
-                input.display(),
-                out_path.display()
-            ),
-        )
-    })?;
+    // Try native first
+    let doc_res = read_document(source, &bytes);
+    let doc = match doc_res {
+        Ok(d) => d,
+        Err(e)
+            if e.is_unsupported() && (is_soffice_format(source) || is_soffice_format(target)) =>
+        {
+            let pool = SofficePool::new();
+            match pool.health() {
+                Ok(h) if !h.ok => {
+                    let msg = h.message.unwrap_or_else(|| {
+                        "soffice pool: no workers. run 'smelt doctor'".to_string()
+                    });
+                    return Err(SmeltError::new(
+                        3,
+                        format!(
+                            "failed: {} -> {} ({msg})",
+                            input.display(),
+                            out_path.display()
+                        ),
+                    ));
+                }
+                Ok(h) if h.ok => {
+                    return Err(SmeltError::new(
+                        3,
+                        format!(
+                            "failed: {} -> {} (soffice pool not ready)",
+                            input.display(),
+                            out_path.display()
+                        ),
+                    ));
+                }
+                Err(_) => {
+                    return Err(SmeltError::new(
+                        3,
+                        format!(
+                            "failed: {} -> {} (soffice pool: no workers. run 'smelt doctor')",
+                            input.display(),
+                            out_path.display()
+                        ),
+                    ));
+                }
+                _ => {
+                    return Err(SmeltError::new(
+                        3,
+                        format!(
+                            "failed: {} -> {} (soffice pool: no workers. run 'smelt doctor')",
+                            input.display(),
+                            out_path.display()
+                        ),
+                    ));
+                }
+            }
+        }
+        Err(e) => {
+            return Err(SmeltError::new(
+                exit_code_for(&e),
+                format!(
+                    "failed: {} -> {} ({e})",
+                    input.display(),
+                    out_path.display()
+                ),
+            ));
+        }
+    };
+    let out = match target_writer(target)?.write(&doc, target) {
+        Ok(o) => o,
+        Err(e)
+            if e.is_unsupported() && (is_soffice_format(source) || is_soffice_format(target)) =>
+        {
+            let pool = SofficePool::new();
+            match pool.health() {
+                Ok(h) if !h.ok => {
+                    let msg = h.message.unwrap_or_else(|| {
+                        "soffice pool: no workers. run 'smelt doctor'".to_string()
+                    });
+                    return Err(SmeltError::new(
+                        3,
+                        format!(
+                            "failed: {} -> {} ({msg})",
+                            input.display(),
+                            out_path.display()
+                        ),
+                    ));
+                }
+                _ => {
+                    return Err(SmeltError::new(
+                        3,
+                        format!(
+                            "failed: {} -> {} (soffice pool: no workers. run 'smelt doctor')",
+                            input.display(),
+                            out_path.display()
+                        ),
+                    ));
+                }
+            }
+        }
+        Err(e) => {
+            return Err(SmeltError::new(
+                exit_code_for_write(&e),
+                format!(
+                    "failed: {} -> {} ({e})",
+                    input.display(),
+                    out_path.display()
+                ),
+            ));
+        }
+    };
     let ms = started.elapsed().as_millis();
 
     if to_stdout {
