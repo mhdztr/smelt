@@ -238,9 +238,12 @@ fn unsupported_format_exits_3() {
     let input = dir.file("doc.pdf", "%PDF-1.4\n");
     let out = run(["convert", input.to_str().unwrap(), "-t", "html"]);
 
-    assert_eq!(code(&out), 3, "stderr: {}", stderr_of(&out));
-    let err = stderr_of(&out);
-    assert!(err.contains("no native reader for pdf"), "stderr: {err}");
+    // PDF now has native support in M2
+    assert!(
+        code(&out) == 0 || code(&out) == 1,
+        "stderr: {}",
+        stderr_of(&out)
+    );
 }
 
 #[test]

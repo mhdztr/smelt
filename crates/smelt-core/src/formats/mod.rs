@@ -10,6 +10,7 @@ mod delimited;
 pub mod epub;
 pub mod html;
 pub mod markdown;
+pub mod pdf;
 pub mod text;
 pub mod tsv;
 

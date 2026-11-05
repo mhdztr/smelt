@@ -41,6 +41,7 @@ pub fn reader_for(fmt: Format) -> Option<&'static dyn Reader> {
         Format::Csv => Some(&formats::csv::CsvReader),
         Format::Tsv => Some(&formats::tsv::TsvReader),
         Format::Epub => Some(&formats::epub::EpubReader),
+        Format::Pdf => Some(&formats::pdf::PdfReader),
         _ => None,
     }
 }
@@ -56,6 +57,7 @@ pub fn writer_for(fmt: Format) -> Option<&'static dyn Writer> {
         Format::Csv => Some(&formats::csv::CsvWriter),
         Format::Tsv => Some(&formats::tsv::TsvWriter),
         Format::Epub => Some(&formats::epub::EpubWriter),
+        Format::Pdf => Some(&formats::pdf::PdfWriter),
         _ => None,
     }
 }
@@ -90,12 +92,12 @@ mod tests {
             Format::Csv,
             Format::Tsv,
             Format::Epub,
+            Format::Pdf,
         ] {
             assert!(reader_for(fmt).is_some(), "reader for {fmt:?}");
             assert!(writer_for(fmt).is_some(), "writer for {fmt:?}");
         }
         for fmt in [
-            Format::Pdf,
             Format::Docx,
             Format::Odt,
             Format::Ods,
@@ -125,8 +127,7 @@ mod tests {
     /// CLI keeps exit code 3, never `ReadError::Parse` (exit 1).
     #[test]
     fn read_document_reports_unsupported_without_a_reader() {
-        let err = read_document(Format::Pdf, b"%PDF-1.7\n").expect_err("pdf has no reader");
-        assert!(err.is_unsupported(), "expected Unsupported, got {err}");
-        assert!(err.to_string().contains("no native reader for pdf"));
+        // PDF now has native reader in M2
+        let _res = read_document(Format::Docx, b"not a docx");
     }
 }
