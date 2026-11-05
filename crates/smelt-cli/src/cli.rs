@@ -44,7 +44,7 @@ pub struct Cli {
     pub command: Command,
 }
 
-/// M0 subcommands (`watch`, `diff`, `ocr`, `man` are planned, docs/cli.md).
+/// Commands (M3 adds watch, diff, ocr).
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Convert files, directories, or stdin to a target format
@@ -65,6 +65,15 @@ pub enum Command {
         /// Shell to generate the script for
         shell: Shell,
     },
+
+    /// Watch directory and incrementally convert on changes
+    Watch(WatchArgs),
+
+    /// Semantic diff on the IDM
+    Diff(DiffArgs),
+
+    /// OCR for images and scanned PDFs
+    Ocr(OcrArgs),
 }
 
 #[derive(Debug, Args)]
@@ -103,4 +112,34 @@ pub struct InfoArgs {
     /// Machine-readable JSON output
     #[arg(long)]
     pub json: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct WatchArgs {
+    /// Directory to watch
+    #[arg(value_name = "DIR")]
+    pub dir: PathBuf,
+    /// Target format
+    #[arg(short = 't', long = "to")]
+    pub to: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct DiffArgs {
+    /// First file
+    #[arg(value_name = "FILE1")]
+    pub file1: PathBuf,
+    /// Second file
+    #[arg(value_name = "FILE2")]
+    pub file2: PathBuf,
+}
+
+#[derive(Debug, Args)]
+pub struct OcrArgs {
+    /// Input file (image or scanned pdf)
+    #[arg(value_name = "FILE")]
+    pub file: PathBuf,
+    /// Target format
+    #[arg(short = 't', long = "to")]
+    pub to: Option<String>,
 }

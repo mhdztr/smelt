@@ -2,8 +2,11 @@
 
 pub mod completions;
 pub mod convert;
+pub mod diff;
 pub mod doctor;
 pub mod info;
+pub mod ocr;
+pub mod watch;
 
 use std::path::Path;
 
