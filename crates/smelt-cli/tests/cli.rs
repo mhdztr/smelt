@@ -1163,3 +1163,24 @@ fn epub_roundtrip_via_cli() {
     let content = fs::read_to_string(&md2).expect("md written");
     assert!(content.contains("Hello"));
 }
+
+#[test]
+fn pdf_roundtrip_via_cli() {
+    let dir = TempDir::new("pdf");
+    let md = dir.file("in.md", "# Hello\n\nWorld\n");
+    let pdf = dir.path().join("out.pdf");
+    let out1 = run([
+        "convert",
+        md.to_str().unwrap(),
+        "-t",
+        "pdf",
+        "-o",
+        pdf.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out1), 0, "stderr: {}", stderr_of(&out1));
+    let out2 = run(["convert", pdf.to_str().unwrap(), "-t", "md"]);
+    assert_eq!(code(&out2), 0, "stderr: {}", stderr_of(&out2));
+    let md2 = pdf.with_extension("md");
+    let content = fs::read_to_string(&md2).expect("md written");
+    assert!(content.contains("Hello"));
+}
