@@ -15,17 +15,17 @@ impl Config {
         if let Some(path) = path
             && let Ok(content) = std::fs::read_to_string(&path)
         {
-                // Minimal parser: look for color = "..."
-                for line in content.lines() {
-                    let line = line.trim();
-                    if let Some(rest) = line.strip_prefix("color") {
-                        let rest = rest.trim().strip_prefix('=').unwrap_or("").trim();
-                        let val = rest.trim_matches('"').trim_matches('\'').to_string();
-                        if !val.is_empty() {
-                            return Self { color: Some(val) };
-                        }
+            // Minimal parser: look for color = "..."
+            for line in content.lines() {
+                let line = line.trim();
+                if let Some(rest) = line.strip_prefix("color") {
+                    let rest = rest.trim().strip_prefix('=').unwrap_or("").trim();
+                    let val = rest.trim_matches('"').trim_matches('\'').to_string();
+                    if !val.is_empty() {
+                        return Self { color: Some(val) };
                     }
                 }
+            }
         }
         Self::default()
     }

@@ -1721,6 +1721,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "smelt-wasm"
+version = "0.1.0"
+dependencies = [
+ "smelt-core",
+ "smelt-detect",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "snafu"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
