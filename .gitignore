@@ -6,3 +6,8 @@
 *.swp
 *.swo
 *~
+
+# Generated WASM packages (built by wasm-pack)
+crates/smelt-wasm/pkg/
+demo/pkg/
+

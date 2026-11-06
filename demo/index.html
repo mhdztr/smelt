@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>smelt wasm demo</title>
+  <style>
+    :root { color-scheme: light dark; --border: #8884; --bg: #8881; }
+    body { font-family: system-ui, sans-serif; max-width: 980px; margin: 0 auto; padding: 1rem; line-height: 1.4; }
+    h1 { font-size: 1.25rem; margin: 0 0 .25rem; }
+    .note { font-size: .9rem; opacity: .85; margin: 0 0 1rem; }
+    .row { display: flex; gap: .75rem; flex-wrap: wrap; align-items: end; margin-bottom: .75rem; }
+    label { display: flex; flex-direction: column; gap: .25rem; font-size: .9rem; }
+    select, button, input[type=file] { font: inherit; padding: .35rem .5rem; }
+    button { cursor: pointer; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    textarea { width: 100%; min-height: 320px; font-family: ui-monospace, monospace; font-size: .9rem; padding: .5rem; border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box; }
+    .panel h2 { font-size: .95rem; margin: 0 0 .25rem; }
+    #status { margin: .5rem 0; padding: .5rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); white-space: pre-wrap; font-size: .9rem; }
+    #status.error { border-color: #c44; }
+    #status.ok { border-color: #484; }
+    .actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .5rem; }
+  </style>
+</head>
+<body>
+  <h1>smelt wasm demo</h1>
+  <p class="note">Conversion runs entirely in your browser via WebAssembly. No backend conversion server. Serve this directory with a static file server for local ES module loading (for example <code>python3 -m http.server --directory demo 8000</code>).</p>
+
+  <div class="row">
+    <label>Input file <input id="file" type="file"></label>
+    <label>Filename hint <input id="filename" type="text" placeholder="note.md"></label>
+    <label>From
+      <select id="from">
+        <option value="auto">auto-detect</option>
+      </select>
+    </label>
+    <label>To
+      <select id="to"></select>
+    </label>
+    <button id="convert" type="button">Convert</button>
+  </div>
+
+  <div id="status">Loading WASM module...</div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Input</h2>
+      <textarea id="input" spellcheck="false" placeholder="# Hello&#10;&#10;Paste text or choose a file."></textarea>
+    </div>
+    <div class="panel">
+      <h2>Output</h2>
+      <textarea id="output" spellcheck="false" readonly placeholder="Converted output appears here."></textarea>
+      <div class="actions">
+        <button id="download" type="button" disabled>Download output</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
