@@ -1,6 +1,6 @@
 # Maintainer: mhdztr <zakkithoriq@gmail.com>
 pkgname=smelt
-pkgver=0.1.0
+pkgver=2.0.0
 pkgrel=1
 pkgdesc="Advanced document converter CLI - melt any document into any other"
 arch=('x86_64' 'aarch64')

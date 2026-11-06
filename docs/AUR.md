@@ -8,14 +8,13 @@ How smelt releases reach the Arch User Repository. Three packages:
 | `smelt-bin` | prebuilt release binary | no Rust toolchain needed |
 | `smelt-git` | git HEAD | testers |
 
-The release binary is **not** statically linked today: `ldd` on
-`target/release/smelt` reports `libgcc_s.so.1`, `libm.so.6`, `libc.so.6`
-plus an ELF interpreter, so the binary package depends on `glibc` for the
-same reason the source package does. A fully static musl artifact is planned
-for M4 release packaging, at which point `smelt-bin` can drop its `depends`
-entirely. The real constraint that holds regardless of linking mode: no
-Python/Node runtime, and no external tool is required for the native M0
-conversions.
+Release Linux binaries are dynamically linked against glibc
+(`libgcc_s.so.1`, `libm.so.6`, `libc.so.6`, ELF interpreter), so binary
+packages depend on `glibc`/`gcc-libs`. A fully static musl artifact is not
+part of the 2.0.0 ship claim. 2.0.0 releases publish x86_64 and aarch64 Linux
+tarballs plus a wasm web package; `smelt-bin` remains x86_64-only. No
+Python/Node runtime is required for native CLI conversions. The static demo
+is client-side only (served as static files) and not a backend service.
 
 Note: `gh` is **not** installed on the maintainer machine -- everything here
 uses plain `git` plus the browser.
@@ -97,7 +96,7 @@ not a publish). Verified facts:
 
 | Property | `smelt` | `smelt-bin` | `smelt-git` |
 | --- | --- | --- | --- |
-| `pkgver` | `0.1.0` | `0.1.0` | `0.1.0.r0.g<commit>` (from `pkgver()`; an untagged repo uses the fallback, a tagged repo strips the leading `v`) |
+| `pkgver` | `2.0.0` | `2.0.0` | `2.0.0.r0.g<commit>` (from `pkgver()`; fallback uses 2.0.0 base, tagged repo strips leading `v`) |
 | `pkgrel` | `1` | `1` | `1` |
 | `url` | `https://github.com/mhdztr/smelt` | same | same |
 | `license` | `MIT` | `MIT` | `MIT` |
@@ -108,17 +107,11 @@ not a publish). Verified facts:
 | source | `smelt-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz` | `smelt-bin-$pkgver.tar.gz::$url/releases/download/v$pkgver/smelt-x86_64-unknown-linux-gnu.tar.gz` | `smelt-git::git+https://github.com/mhdztr/smelt.git` |
 | checksums | 64-zero placeholder | 64-zero placeholder | `sha256sums=('SKIP')` |
 
-All three share the same `url`, `license=('MIT')`, `pkgver=0.1.0` and
-`pkgrel=1`. The `gcc-libs`/`glibc` depends are correct for the current
-dynamically-linked Linux build (see the linking note at the top of this
-file); `smelt-bin`'s `options=('!strip')` keeps the already-stripped release
-asset byte-identical inside the package (checksums are verified against the
-downloaded tarball before extraction, so the option has no bearing on source
-integrity). `smelt` and `smelt-bin` carry 64-zero
-placeholder checksums (clearly marked in comments) that
-`scripts/aur-update.sh` replaces with the real sha256 of the downloaded
-tarball; `smelt-git` uses `sha256sums=('SKIP')` because it tracks a VCS
-source.
+All three share the same `url` and `license=('MIT')`. PKGBUILDs are versioned
+for 2.0.0; `smelt` and `smelt-bin` carry placeholder checksums until release
+assets are published and `scripts/aur-update.sh` rewrites real sha256 values.
+`smelt-bin` remains x86_64-only even though 2.0.0 releases also publish an
+aarch64 Linux tarball and a wasm web package.
 
 ### `makepkg -si` prerequisites
 
@@ -145,7 +138,7 @@ Until 1 and 2 are satisfied, local `makepkg -s` on `smelt`/`smelt-bin` can
 only be expected to fail at source retrieval / integrity, not to build.
 `smelt-git` is the only package whose source resolves without a release
 (it clones HEAD), so it is the one whose source can be fetched today; its
-`pkgver()` falls back to `0.1.0.r0.g<commit>` when the clone carries no tag.
+`pkgver()` falls back to `2.0.0.r0.g<commit>` when the clone carries no tag.
 `build()` and `package()` in all three PKGBUILDs agree on cargo's default
 target directory (no `CARGO_TARGET_DIR` override), which the packaging tests
 pin; a full `makepkg -s` still needs network access to GitHub and the real

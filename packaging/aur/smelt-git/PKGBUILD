@@ -1,6 +1,6 @@
 # Maintainer: mhdztr <zakkithoriq@gmail.com>
 pkgname=smelt-git
-pkgver=0.1.0.r0.g00000000
+pkgver=2.0.0.r0.g00000000
 pkgrel=1
 pkgdesc="Advanced document converter CLI - melt any document into any other (git HEAD)"
 arch=('x86_64' 'aarch64')
@@ -23,7 +23,7 @@ pkgver() {
   if describe="$(git describe --long --tags --abbrev=8 2>/dev/null)"; then
     printf '%s\n' "${describe#v}" | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
   else
-    printf '0.1.0.r0.g%s\n' "$(git rev-parse --short=8 HEAD)"
+    printf '2.0.0.r0.g%s\n' "$(git rev-parse --short=8 HEAD)"
   fi
 }
 

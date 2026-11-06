@@ -1,8 +1,10 @@
 # docs/cli.md -- smelt command reference
 
-Spec of record for the CLI surface. Commands marked *planned* are designed
-here but not yet implemented (see PLAN.md for their milestone). Anything not
-marked is implemented in M0.
+Spec of record for the CLI surface and behavior that matters to users and
+tests. Commands marked *basic* are implemented with limited scope in 2.0.0;
+commands marked *planned* are not implemented. Core conversion/info/doctor/
+completions behavior documented below remains the reference. Where M0-era
+wording is preserved for historical accuracy, current behavior is noted.
 
 ## Global shape
 
@@ -289,11 +291,55 @@ smelt completions <SHELL>
 completion script to stdout (pipe into the shell's completion dir, e.g.
 `smelt completions bash > /etc/bash_completion.d/smelt`).
 
-## Planned commands (M1+, no code yet)
+## `smelt watch` (basic, M3/2.0.0)
+
+```
+smelt watch [--to <FMT>] <DIR>
+```
+
+Watches a directory and incrementally converts changed files. Basic behavior:
+polls approximately every 1.5 seconds, scans the directory's top level
+(non-recursive), skips dot-prefixed names and subdirectories, and converts
+files whose modification time changed since last seen. Requires `-t/--to`.
+Conversion uses the standard single-file convert path with defaults (`-o`
+inferred from the input path + target extension; quiet mode for the convert
+call). Errors are reported to stderr and watching continues. No stable exit
+code is specified for the long-running loop beyond startup/usage errors.
+
+## `smelt diff` (basic, M3/2.0.0)
+
+```
+smelt diff <FILE1> <FILE2>
+```
+
+Reads both files, detects formats (falling back to plain text when detection
+fails), parses to the IDM, and compares documents. Prints `identical` when
+documents are equal, or `different (<n> blocks vs <m> blocks)` when not.
+This is a minimal structural summary, not a full semantic/line diff.
+
+## `smelt ocr` (basic, M3/2.0.0)
+
+```
+smelt ocr <FILE>
+```
+
+Requires `tesseract` on `PATH`. Runs `tesseract <file> stdout` and writes
+recognized text to stdout. Fails with an actionable/unsupported-style error
+when `tesseract` is unavailable or the command fails. Not a static Tesseract
+FFI integration.
+
+## `smelt man` (M4/2.0.0)
+
+```
+smelt man
+```
+
+Emits the roff man page generated from the clap command tree (`clap_mangen`)
+to stdout.
+
+## Planned commands (not implemented in 2.0.0)
 
 | Command | Milestone | Purpose |
 | --- | --- | --- |
-| `smelt watch` | M3 | watch a directory and convert on change |
-| `smelt diff` | M3 | semantic diff of two documents via the IDM |
-| `smelt ocr` | M3 | OCR images and scanned PDFs via Tesseract |
-| `smelt man` | M4 | emit the man page (clap_mangen) |
+| `smelt watch` (recursive/watchman-grade) | future | richer watching semantics than basic polling |
+| `smelt diff` (full semantic diff) | future | detailed IDM structural diff output |

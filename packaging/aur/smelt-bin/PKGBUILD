@@ -1,8 +1,8 @@
 # Maintainer: mhdztr <zakkithoriq@gmail.com>
 pkgname=smelt-bin
-pkgver=0.1.0
+pkgver=2.0.0
 pkgrel=1
-pkgdesc="Advanced document converter CLI - melt any document into any other (prebuilt binary)"
+pkgdesc="Advanced document converter CLI - melt any document into any other (prebuilt binary, x86_64)"
 arch=('x86_64')
 url="https://github.com/mhdztr/smelt"
 license=('MIT')
@@ -12,10 +12,10 @@ conflicts=('smelt')
 options=('!strip')
 # Expected release asset name for the v$pkgver GitHub release
 # (smelt-x86_64-unknown-linux-gnu.tar.gz, containing the stripped `smelt`
-# binary plus LICENSE and README.md). The current Linux build is dynamically
-# linked against glibc (libc, libm, libgcc_s), hence the glibc/gcc-libs
-# depends; a fully static musl artifact is planned for M4 release packaging,
-# at which point this can become depends=().
+# binary plus LICENSE and README.md). Release artifacts also include an
+# aarch64 tarball and a wasm web package, but this PKGBUILD remains x86_64.
+# The Linux build is dynamically linked against glibc (libc, libm, libgcc_s),
+# hence the glibc/gcc-libs depends.
 source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/smelt-x86_64-unknown-linux-gnu.tar.gz")
 # Placeholder until the first tagged release; scripts/aur-update.sh replaces
 # this with the real sha256 of the release asset before any publish.

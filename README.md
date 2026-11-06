@@ -11,17 +11,22 @@ reader or one writer, not N x M converters.
 - **Fast**: ~5 ms startup, persistent warm engine pools (never one subprocess
   per file), page-parallel PDF work, content-hash caching, parallel batches.
 - **Single self-contained binary**: external tools (LibreOffice, pandoc,
-  calibre, groff) are optional accelerators detected at runtime, never
-  requirements. No Python, no Node. The current Linux build is dynamically
-  linked against glibc (libc, libm, libgcc_s); a fully static musl artifact
-  is planned for M4 release packaging.
-- **Honest output**: fidelity reporting, actionable errors, documented exit
-  codes, clean Unicode UI with automatic ASCII fallback.
+  calibre, tesseract, groff) are optional accelerators detected at runtime,
+  never requirements. No Python, no Node. Release Linux binaries are
+  dynamically linked against glibc (libc, libm, libgcc_s); fully static musl
+  artifacts are not a 2.0.0 ship claim.
+- **Browser bindings**: `smelt-wasm` exposes core conversion in the browser
+  for a wasm-safe format subset (md/html/txt/csv/tsv). The included demo is a
+  static client-side page -- not a backend conversion server and not a CLI
+  replacement.
+- **Honest output**: actionable errors, documented exit codes, clean Unicode
+  UI with automatic ASCII fallback.
 
-Status: **M1 in progress** -- native Markdown/HTML/plain-text and CSV/TSV
-conversion, magic-byte format detection, `convert`, `info`, `doctor`, and
-`completions`. The full roadmap lives in [PLAN.md](PLAN.md); the full format
-matrix in [FORMATS.md](FORMATS.md).
+Status: **2.0.0 / M5 ship** -- native Markdown/HTML/plain-text and CSV/TSV
+conversion in core/CLI, basic `watch`/`diff`/`ocr`/`man` commands, usable
+`smelt-wasm` browser bindings, a static demo, and CI/release artifacts.
+The full roadmap and historical milestones live in [PLAN.md](PLAN.md); the
+full format matrix in [FORMATS.md](FORMATS.md).
 
 ## Install
 
@@ -36,6 +41,33 @@ cargo install --path crates/smelt-cli   # installs the `smelt` binary
 
 Arch Linux: AUR packages (`smelt`, `smelt-bin`, `smelt-git`) are planned;
 see [docs/AUR.md](docs/AUR.md) for the publish runbook.
+
+## Release artifacts
+
+Tagged `v*` releases publish GitHub release assets:
+- `smelt-x86_64-unknown-linux-gnu.tar.gz`
+- `smelt-aarch64-unknown-linux-gnu.tar.gz` (built via `cross`)
+- `smelt-wasm-web-pkg.tar.gz` (wasm-pack web package)
+
+Download, extract, and place the `smelt` binary on your `PATH` (Linux release
+binaries depend on glibc/gcc-libs at runtime).
+
+## Browser demo (static, client-side)
+
+The demo in `demo/` uses `smelt-wasm` in the browser. It performs conversion
+client-side only -- there is **no backend conversion server**.
+
+```sh
+# Build the wasm package (requires wasm-pack)
+wasm-pack build crates/smelt-wasm --target web --out-dir ../../demo/pkg --release
+
+# Serve the static demo (ES modules require HTTP)
+python3 -m http.server --directory demo 8000
+# Open http://localhost:8000
+```
+
+v1 wasm formats: Markdown, HTML, plain text, CSV, TSV. Unsupported formats
+return actionable errors.
 
 ## Quickstart
 

@@ -1,37 +1,42 @@
 # FORMATS.md -- smelt format matrix
 
 Read/Write capability, engine, and target milestone for every planned
-format. "Native" = pure Rust inside smelt. "Optional" = external tool via a
-warm pool (see ARCHITECTURE.md); the tool is detected at runtime and never
-required.
+format. "Native" = implemented in Rust inside `smelt-core` (feature-gated;
+availability depends on the build). "Optional" = external tool detected at
+runtime and never required (warm pools planned; some commands use direct
+tool invocation).
 
 | Format | Read | Write | Engine | Milestone | Notes |
 | --- | --- | --- | --- | --- | --- |
-| Markdown (GFM/CommonMark) | yes | yes | native | M0 | comrak; tables, strikethrough, autolinks on; tasklists degrade (see lossy list) |
+| Markdown (GFM/CommonMark) | yes | yes | native | M0 | comrak (default-features off in core); tables, strikethrough, autolinks; tasklists degrade (see lossy list) |
 | HTML | yes | yes | native | M0 | scraper/html5ever read; hand-rolled serializer write; malformed input auto-repaired (lossy) |
 | Plain text | yes | yes | native | M0 | blank-line paragraph splitting on read; minimal structure on write |
 | CSV / TSV | yes | yes | native | M1 | first record is the header; each file becomes one strict IDM table; RFC-4180-style quoting |
-| EPUB | yes | yes | native | M1 | zip + XHTML spine; reuses the HTML converter |
-| DOCX | yes | yes | LibreOffice (optional) | M1 | via warm soffice pool |
-| ODT | yes | yes | LibreOffice (optional) | M1 | via warm soffice pool |
-| ODS | yes | yes | LibreOffice (optional) | M1 | OpenDocument spreadsheet; detected in M0, converted via soffice pool |
-| ODP | yes | yes | LibreOffice (optional) | M1 | OpenDocument presentation; detected in M0, converted via soffice pool |
+| EPUB | yes | yes | native (core, `zip`) | M1 | zip + XHTML spine; reuses the HTML converter. Not in wasm subset |
+| DOCX | yes | yes | LibreOffice (optional) | M1 | via soffice integration/pool path where available |
+| ODT | yes | yes | LibreOffice (optional) | M1 | via soffice integration/pool path where available |
+| ODS | yes | yes | LibreOffice (optional) | M1 | OpenDocument spreadsheet; detected in M0, converted via soffice |
+| ODP | yes | yes | LibreOffice (optional) | M1 | OpenDocument presentation; detected in M0, converted via soffice |
 | PPTX | yes | yes | LibreOffice (optional) | M1 | slide-per-block; layout is lossy |
 | XLSX | yes | yes | LibreOffice (optional) | M1 | sheets become tables; multi-sheet is lossy |
-| PDF | yes | yes | PDFium (static FFI) | M2 | page-parallel via rayon |
-| Searchable PDF | no | yes | PDFium (static) | M2 | renders text layer for OCR'd documents |
-| LaTeX | yes | yes | pandoc (optional) | M3 | |
-| man / troff | yes | yes | groff (optional) | M3 | |
-| MOBI / AZW | yes | yes | calibre (optional) | M3 | |
-| Images / scanned PDF (OCR) | yes | no | Tesseract 5 + Leptonica (static) | M3 | `smelt ocr` |
-| RTF | planned | planned | native (M4) | M3+ | detection already ships in M0 |
-| PDF (plain, via engine) | -- | -- | -- | -- | PDFium only; no external PDF engine |
+| PDF | yes | yes | native (core, `pdf` + `lopdf`) | M2+ (implemented in core) | not PDFium FFI; page processing can use rayon in native builds. Not in wasm subset; fidelity/layout is limited compared to full PDF engines |
+| Searchable PDF | planned | planned | -- | future | no PDFium text-layer injection shipped in 2.0.0 |
+| LaTeX | planned | planned | pandoc (optional) | M3 | not shipped in 2.0.0 |
+| man / troff | planned | planned | groff (optional) | M3 | not shipped in 2.0.0 |
+| MOBI / AZW | planned | planned | calibre (optional) | M3 | not shipped in 2.0.0 |
+| Images / scanned PDF (OCR) | basic | no | `tesseract` CLI (optional) | M3 (basic) | `smelt ocr` shells out to `tesseract <file> stdout`; not Tesseract/Leptonica static FFI |
+| RTF | planned | planned | native | future | detection already ships in M0 |
 
-Support levels: `yes` = implemented at the listed milestone; `planned` =
-design agreed, code later; detection for all listed formats ships in M0 via
-`smelt-detect` even before converters exist (so `smelt info` can identify
-them and `smelt convert` can fail with the precise "no native reader" exit-3
-message).
+Support levels: `yes` = implemented in the default native build unless noted;
+`basic` = minimal implementation shipped; `planned` = not shipped in 2.0.0.
+Detection for listed formats ships via `smelt-detect` even before converters
+exist (so `smelt info` can identify them and conversion can fail with an
+actionable exit-3/unsupported message).
+
+**WASM subset (M5 / 2.0.0):** `smelt-wasm` supports Markdown, HTML, plain
+text, CSV, and TSV via `smelt-core`'s `wasm` feature set (pure Rust). EPUB,
+PDF, external engines, CLI command behavior, and pool orchestration are not
+available in the browser build.
 
 ## Detection rules (M0, implemented)
 

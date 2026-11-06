@@ -1,7 +1,10 @@
 # PLAN.md -- smelt master plan
 
-`smelt` -- melt any document into any other. This is the full project plan;
-**M0 is complete** (see the milestone section for its acceptance record).
+`smelt` -- melt any document into any other. This is the full project plan.
+**M5 (ship) is complete locally**: workspace version `2.0.0`, usable
+`smelt-wasm` browser bindings, a static client-side demo, and CI/release
+artifacts for Linux x86_64/aarch64 + WASM. See the M5 section for the ship
+record. Historical milestone records (M0-M4 targets) are preserved below.
 
 ## Design thesis
 
@@ -91,6 +94,47 @@ content-hash cache.
   binaries for Linux x86_64/aarch64.
 - Acceptance: Lua filter example runs; `smelt man` emits roff; AUR packages
   build on a clean chroot.
+
+Status (honest): `smelt man` emits roff via `clap_mangen` and is shipped.
+Lua filters, config file, and full AUR publication are not completed in M5;
+AUR PKGBUILDs are versioned for 2.0.0 with placeholder checksums pending
+release asset publication.
+
+### M5 -- ship (complete locally)
+
+Goal: ship a usable 2.0 release with browser bindings, a static demo, and
+release artifacts -- no backend conversion server.
+
+- **`smelt-core` feature gates**: `default = ["native-full"]` preserves the
+  native CLI/core format set (markdown/html/text/csv/tsv/epub/pdf + rayon).
+  `wasm = ["markdown","html","text","csv","tsv"]` is a pure-Rust subset with
+  no syntect/onig/rayon/pdf/epub C or heavyweight deps. `comrak` uses
+  `default-features = false`. `smelt-cli` depends on `smelt-core` with
+  `native-full`; `smelt-wasm` uses `default-features = false, features = ["wasm"]`.
+- **`smelt-wasm`**: browser bindings over `smelt-core` (not `smelt-formats`,
+  not the CLI, not pools). Exposes `version()`, `supported_formats()`,
+  `detect_format(...)`, `convert(...)`, and `convert_text(...)`. Applies CLI
+  plain-text parity (detected Text read via Markdown reader). Unsupported
+  formats and bad inputs return actionable JS errors; no panics on user input.
+  v1 wasm formats: md/html/txt/csv/tsv.
+- **Static demo**: `demo/index.html` + `demo/main.js` + `demo/README.md`.
+  Client-side only; no backend conversion server. ES modules require static
+  HTTP serving locally:
+  `wasm-pack build crates/smelt-wasm --target web --out-dir ../../demo/pkg --release`
+  then `python3 -m http.server --directory demo 8000` and open
+  `http://localhost:8000`.
+- **CI**: fmt, clippy, workspace tests, `cargo check -p smelt-wasm --target wasm32-unknown-unknown`,
+  and a wasm-pack smoke build (web target) on push/PR.
+- **Release (`v*` tags)**: publishes `smelt-x86_64-unknown-linux-gnu.tar.gz`,
+  `smelt-aarch64-unknown-linux-gnu.tar.gz` (built via `cross`), and
+  `smelt-wasm-web-pkg.tar.gz` to the GitHub release.
+- **Packaging/docs**: AUR PKGBUILDs and AUR runbook bumped to 2.0.0; checksums
+  remain placeholders until release assets are published. `smelt-bin` remains
+  x86_64-only in packaging while aarch64 release artifacts are published.
+
+Acceptance (local): `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+`cargo test --workspace`, and `cargo check -p smelt-wasm --target wasm32-unknown-unknown`
+green. Local tag `v2.0.0` created after verification; not pushed.
 
 ## Format matrix
 

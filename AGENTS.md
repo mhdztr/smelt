@@ -31,11 +31,14 @@ Smoke: `cargo run -q -p smelt-cli -- --help` and
   dependencies.** Inline `#[cfg(test)]` tests; no binary fixtures.
 - `crates/smelt-core` -- IDM (`src/idm.rs`, spec of record:
   `docs/idm-spec.md`), errors (`src/error.rs`), Reader/Writer traits and
-  dispatch (`src/lib.rs`), native converters (`src/formats/`).
+  dispatch (`src/lib.rs`), native converters (`src/formats/`). Feature-gated:
+  `native-full` (default, CLI/native builds) and `wasm` (pure-Rust subset).
 - `crates/smelt-cli` -- binary `smelt`: `main.rs` (parse -> dispatch ->
   exit code), `cli.rs` (clap derive), `ui.rs` (Theme, glyphs, color gate,
   human units), `engine.rs` (PATH scan for optional engines),
   `commands/`, `tests/cli.rs`.
+- `crates/smelt-wasm` -- browser/WASM bindings over `smelt-core` (no CLI/UI,
+  no engine pools, no `smelt-formats`). Ships a static demo under `demo/`.
 - Root docs are specs of record: `DESIGN.md` (UX), `FORMATS.md` (matrix),
   `PLAN.md` (milestones), `docs/cli.md` (command reference),
   `docs/idm-spec.md` (IDM v0).
@@ -44,11 +47,16 @@ Smoke: `cargo run -q -p smelt-cli -- --help` and
 
 1. `smelt-detect` is a leaf: zero dependencies, no crate-internal deps.
 2. `smelt-core` depends only on `smelt-detect` and parsing/serialization
-   libraries. It **never** depends on `smelt-cli`.
+   libraries. It **never** depends on `smelt-cli` or `smelt-wasm`.
 3. `smelt-cli` is the only crate that prints to stdout/stderr, reads
-   environment variables, or exits.
-4. Readers/writers live in `smelt-core` (M0); the `smelt-formats` crate
-   arrives only in M1 for engine adapters and FFI.
+   environment variables for terminal behavior, or exits the process.
+4. `smelt-wasm` is browser bindings only: it depends on `smelt-core`'s
+   wasm-safe feature set and **never** depends on `smelt-formats`, `smelt-cli`,
+   terminal/UI code, or engine pool orchestration.
+5. Readers/writers live in `smelt-core`; `smelt-formats` is reserved for
+   heavier engine adapters/FFI if/when added. Format availability is
+   feature-gated (`native-full` vs `wasm`) and must fail with actionable
+   errors, never panics on user input.
 
 ## How to add a reader or writer
 

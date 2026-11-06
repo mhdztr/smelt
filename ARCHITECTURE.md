@@ -3,38 +3,49 @@
 ## Crate graph
 
 ```
-                 +---------------+
-                 |  smelt-cli    |  binary `smelt`: clap CLI, UI, pools
-                 | (only crate   |  (dispatch, commands, ui.rs, engine.rs)
-                 |  that prints) |
-                 +-------+-------+
-                         |
-                         v
-                 +---------------+
-                 |  smelt-core   |  IDM, Reader/Writer traits, native
-                  |               |  converters (md, html, txt in M0;
-                  |               |  csv, tsv in M1)
-                 +-------+-------+
-                         |
-                         v
-                 +---------------+
-                 | smelt-detect  |  Format enum, magic-byte detection
-                 | (zero deps)   |
-                 +---------------+
+                 +---------------+        +----------------+
+                 |  smelt-cli    |        |  smelt-wasm    |
+                 | binary `smelt`|        | browser/WASM   |
+                 | (prints/IO)   |        | bindings only  |
+                 +-------+-------+        +-------+--------+
+                         |                        |
+                         v                        v
+                 +-----------------------------------------+
+                 |              smelt-core                 |
+                 | IDM, Reader/Writer traits, native      |
+                 | converters; feature-gated for native    |
+                 | (`native-full`) and wasm (`wasm`)       |
+                 +-------------------+---------------------+
+                                     |
+                                     v
+                             +---------------+
+                             | smelt-detect  |  Format enum, magic-byte detection
+                             | (zero deps)   |
+                             +---------------+
 ```
 
 Dependency direction is strictly downward: `smelt-detect <- smelt-core
-<- smelt-cli`. Readers and writers depend only on `smelt-core`;
-`smelt-core` never depends on `smelt-cli`.
+<- smelt-cli` and `smelt-detect <- smelt-core <- smelt-wasm`. Readers and
+writers live in `smelt-core`; `smelt-core` never depends on `smelt-cli` or
+`smelt-wasm`.
 
-`smelt-detect` is a zero-dependency leaf so the CLI can report format
-information without linking the conversion stack. `Format` is defined in
-`smelt-detect` and re-exported by `smelt-core`.
+`smelt-detect` is a zero-dependency leaf so the CLI and WASM bindings can
+report format information without unnecessary coupling. `Format` is defined
+in `smelt-detect` and re-exported by `smelt-core`.
 
-A fourth crate, `smelt-formats`, is deferred to M1: it appears at the first
-point where LibreOffice/pandoc/calibre adapters and C FFI bindings make an
-extra layer worth its rent. In M0 the pure-Rust md/html/txt converters live
-in `smelt-core/src/formats/` because they share the IDM directly.
+`smelt-formats` is deferred for heavier engine adapters/FFI; native format
+implementations live in `smelt-core/src/formats/` and are feature-gated.
+
+## WASM bindings (M5)
+
+`smelt-wasm` is a browser binding layer over `smelt-core`. It must not depend
+on `smelt-formats`, the CLI, terminal/UI code, or engine pool orchestration.
+It uses `smelt-core` with `default-features = false, features = ["wasm"]` so
+the wasm build excludes syntect/onig, rayon, PDF, EPUB, and other non-wasm-safe
+or heavyweight dependencies. The v1 wasm surface exposes version, supported
+formats, detection, and byte/text conversion with actionable errors and no
+panics on user input. The demo is a static client-side page; conversion does
+not go through a backend server.
 
 ## Data flow
 
@@ -91,24 +102,20 @@ Never spawn an external tool per file (PERFORMANCE.md guardrail 1).
 - Failure surfaces as an actionable error, e.g.
   `failed: a.docx -> pdf (soffice pool: no workers. run 'smelt doctor')`.
 
-## FFI strategy
+## FFI and native dependencies
 
-Hot-path C libraries are statically linked, feature-gated per platform:
+The original design targeted static FFI for hot paths (PDFium, Tesseract,
+HarfBuzz/FriBidi, zlib-ng). As of 2.0.0, `smelt-core` implements PDF/EPUB
+using Rust crates (`pdf`/`lopdf`, `zip`) behind feature gates rather than
+PDFium FFI, and OCR uses the external `tesseract` CLI (basic) rather than
+static Tesseract/Leptonica bindings. No hand-written C FFI shims are required
+for the shipped 2.0.0 core conversion paths.
 
-- **PDFium** (BSD-3) -- PDF read/write, M2.
-- **Tesseract 5 + Leptonica** (Apache-2.0) -- OCR, M3.
-- **HarfBuzz / FriBidi** -- text shaping/RTL, post-M0 (M0 preserves RTL
-  content but does not shape).
-- **zlib-ng** -- fast deflate for OOXML/zip internals when needed.
-
-None of these are linked yet, so the M0 binary contains no FFI at all. The
-M0 Linux binary is dynamically linked against glibc (libc, libm, libgcc_s);
-a fully static musl artifact is M4 release packaging work.
-
-Bindings are hand-written `unsafe` shims confined to the crate that owns the
-library; no bindgen at build time (reproducible builds, no clang
-requirement). Static linking keeps the zero-required-runtime promise
-(ADR 0004); licensing is settled in ADR 0005.
+The wasm feature set excludes PDF/EPUB and C-heavy dependencies. Linux release
+binaries are dynamically linked against glibc (libc, libm, libgcc_s) in
+2.0.0; fully static musl artifacts remain future packaging work. Any future
+FFI/static-linking work must remain feature-gated per platform and keep the
+zero-required-runtime/native build constraints explicit.
 
 ## Threading model
 
