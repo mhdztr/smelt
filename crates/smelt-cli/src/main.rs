@@ -5,6 +5,7 @@
 mod cache;
 mod cli;
 mod commands;
+mod config;
 mod engine;
 mod ui;
 
