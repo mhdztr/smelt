@@ -1440,7 +1440,7 @@ checksum = "5b3dc8af474f516a851ff4bd12db780f948b9250ad37211e4eec0bccea54e01b"
 
 [[package]]
 name = "smelt-cli"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "clap",
  "clap_complete",
@@ -1459,7 +1459,7 @@ dependencies = [
 
 [[package]]
 name = "smelt-core"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "comrak",
  "lopdf",
@@ -1476,11 +1476,11 @@ dependencies = [
 
 [[package]]
 name = "smelt-detect"
-version = "0.1.0"
+version = "2.0.0"
 
 [[package]]
 name = "smelt-formats"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "smelt-core",
  "smelt-detect",
@@ -1491,7 +1491,7 @@ dependencies = [
 
 [[package]]
 name = "smelt-wasm"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "smelt-core",
  "smelt-detect",

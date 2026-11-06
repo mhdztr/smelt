@@ -108,7 +108,7 @@ fn smelt_git_pkgver_handles_no_tags_and_strips_the_v() {
     // No tags: `git describe` fails, the fallback must still produce a valid
     // pkgver instead of aborting the build.
     let untagged = run_pkgver(&pkgbuild, dir.path());
-    assert_eq!(untagged, format!("0.1.0.r0.g{commit}"));
+    assert_eq!(untagged, format!("2.0.0.r0.g{commit}"));
 
     // A tag named with the release `v` prefix is stripped from pkgver.
     git(&work, &["tag", "v0.2.0"]);
