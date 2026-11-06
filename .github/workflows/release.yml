@@ -5,10 +5,94 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  build-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            use_cross: false
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            use_cross: true
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install cross
+        if: matrix.use_cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+      - name: Build CLI
+        run: |
+          if [ "${{ matrix.use_cross }}" = "true" ]; then
+            cross build --release -p smelt-cli --target ${{ matrix.target }}
+          else
+            cargo build --release -p smelt-cli --target ${{ matrix.target }}
+          fi
+      - name: Smoke test version
+        if: "!matrix.use_cross"
+        run: ./target/${{ matrix.target }}/release/smelt --version
+      - name: Package artifact
+        run: |
+          set -euo pipefail
+          mkdir -p dist/pkg
+          cp target/${{ matrix.target }}/release/smelt dist/pkg/smelt
+          cp LICENSE README.md dist/pkg/
+          tar -C dist/pkg -czf dist/smelt-${{ matrix.target }}.tar.gz smelt LICENSE README.md
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smelt-${{ matrix.target }}
+          path: dist/smelt-${{ matrix.target }}.tar.gz
+
+  build-wasm:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --release --workspace
+        with:
+          targets: wasm32-unknown-unknown
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+      - name: Build WASM package
+        run: wasm-pack build crates/smelt-wasm --target web --release --out-dir pkg
+      - name: Package WASM artifact
+        run: |
+          set -euo pipefail
+          mkdir -p dist/wasm
+          cp -r crates/smelt-wasm/pkg dist/wasm/pkg
+          cp crates/smelt-wasm/README.md dist/wasm/README.md
+          tar -C dist/wasm -czf dist/smelt-wasm-web-pkg.tar.gz pkg README.md
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smelt-wasm-web-pkg
+          path: dist/smelt-wasm-web-pkg.tar.gz
+
+  publish-release:
+    needs: [build-linux, build-wasm]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tar.gz
+          generate_release_notes: true
+          draft: false
+          prerelease: false
