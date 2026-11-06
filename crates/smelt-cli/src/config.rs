@@ -3,15 +3,18 @@
 use std::path::PathBuf;
 
 #[derive(Debug, Default, Clone)]
+#[allow(dead_code)]
 pub struct Config {
     pub color: Option<String>,
 }
 
+#[allow(dead_code)]
 impl Config {
     pub fn load() -> Self {
         let path = Self::default_path();
-        if let Some(path) = path {
-            if let Ok(content) = std::fs::read_to_string(&path) {
+        if let Some(path) = path
+            && let Ok(content) = std::fs::read_to_string(&path)
+        {
                 // Minimal parser: look for color = "..."
                 for line in content.lines() {
                     let line = line.trim();
@@ -23,7 +26,6 @@ impl Config {
                         }
                     }
                 }
-            }
         }
         Self::default()
     }
