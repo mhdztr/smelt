@@ -30,33 +30,39 @@ pub trait Writer: Send + Sync {
     fn write(&self, doc: &Document, fmt: Format) -> Result<Vec<u8>, WriteError>;
 }
 
-/// The reader for a format, if smelt has a native one (M0: markdown, html,
-/// text; M1: csv, tsv). `None` means unsupported -- the CLI maps that to exit
-/// code 3.
+/// The reader for a format, if smelt has a native one compiled into this build.
+/// `None` means unsupported -- the CLI maps that to exit code 3.
 pub fn reader_for(fmt: Format) -> Option<&'static dyn Reader> {
     match fmt {
+        #[cfg(feature = "markdown")]
         Format::Markdown => Some(&formats::markdown::MarkdownReader),
+        #[cfg(feature = "html")]
         Format::Html => Some(&formats::html::HtmlReader),
         Format::Text => Some(&formats::text::TextReader),
         Format::Csv => Some(&formats::csv::CsvReader),
         Format::Tsv => Some(&formats::tsv::TsvReader),
+        #[cfg(feature = "epub")]
         Format::Epub => Some(&formats::epub::EpubReader),
+        #[cfg(feature = "pdf")]
         Format::Pdf => Some(&formats::pdf::PdfReader),
         _ => None,
     }
 }
 
-/// The writer for a format, if smelt has a native one (M0: markdown, html,
-/// text; M1: csv, tsv). `None` means unsupported -- the CLI maps that to exit
-/// code 3.
+/// The writer for a format, if smelt has a native one compiled into this build.
+/// `None` means unsupported -- the CLI maps that to exit code 3.
 pub fn writer_for(fmt: Format) -> Option<&'static dyn Writer> {
     match fmt {
+        #[cfg(feature = "markdown")]
         Format::Markdown => Some(&formats::markdown::MarkdownWriter),
+        #[cfg(feature = "html")]
         Format::Html => Some(&formats::html::HtmlWriter),
         Format::Text => Some(&formats::text::TextWriter),
         Format::Csv => Some(&formats::csv::CsvWriter),
         Format::Tsv => Some(&formats::tsv::TsvWriter),
+        #[cfg(feature = "epub")]
         Format::Epub => Some(&formats::epub::EpubWriter),
+        #[cfg(feature = "pdf")]
         Format::Pdf => Some(&formats::pdf::PdfWriter),
         _ => None,
     }
@@ -85,17 +91,29 @@ mod tests {
 
     #[test]
     fn dispatch_covers_native_formats_only() {
-        for fmt in [
-            Format::Markdown,
-            Format::Html,
-            Format::Text,
-            Format::Csv,
-            Format::Tsv,
-            Format::Epub,
-            Format::Pdf,
-        ] {
+        for fmt in [Format::Text, Format::Csv, Format::Tsv] {
             assert!(reader_for(fmt).is_some(), "reader for {fmt:?}");
             assert!(writer_for(fmt).is_some(), "writer for {fmt:?}");
+        }
+        #[cfg(feature = "markdown")]
+        {
+            assert!(reader_for(Format::Markdown).is_some());
+            assert!(writer_for(Format::Markdown).is_some());
+        }
+        #[cfg(feature = "html")]
+        {
+            assert!(reader_for(Format::Html).is_some());
+            assert!(writer_for(Format::Html).is_some());
+        }
+        #[cfg(feature = "epub")]
+        {
+            assert!(reader_for(Format::Epub).is_some());
+            assert!(writer_for(Format::Epub).is_some());
+        }
+        #[cfg(feature = "pdf")]
+        {
+            assert!(reader_for(Format::Pdf).is_some());
+            assert!(writer_for(Format::Pdf).is_some());
         }
         for fmt in [
             Format::Docx,
@@ -116,6 +134,7 @@ mod tests {
     /// invariants: validation runs on the way out, so callers never receive
     /// a structurally invalid `Document`.
     #[test]
+    #[cfg(feature = "markdown")]
     fn read_document_validates_the_parsed_result() {
         let doc = read_document(Format::Markdown, b"# Head\n\nbody\n").expect("markdown parses");
         assert_eq!(doc.validate(), Ok(()));
@@ -127,7 +146,7 @@ mod tests {
     /// CLI keeps exit code 3, never `ReadError::Parse` (exit 1).
     #[test]
     fn read_document_reports_unsupported_without_a_reader() {
-        // PDF now has native reader in M2
-        let _res = read_document(Format::Docx, b"not a docx");
+        let err = read_document(Format::Docx, b"not a docx").expect_err("unsupported");
+        assert!(err.is_unsupported());
     }
 }

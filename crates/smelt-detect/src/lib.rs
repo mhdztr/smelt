@@ -99,19 +99,35 @@ impl Format {
         })
     }
 
-    /// Formats smelt can parse natively without an external engine.
+    /// Formats smelt can parse natively in the full core build without an
+    /// external engine. Availability in a specific build (e.g. WASM feature
+    /// subsets) is determined by `smelt_core::reader_for`.
     pub fn has_native_reader(self) -> bool {
         matches!(
             self,
-            Format::Markdown | Format::Html | Format::Text | Format::Csv | Format::Tsv
+            Format::Markdown
+                | Format::Html
+                | Format::Text
+                | Format::Csv
+                | Format::Tsv
+                | Format::Epub
+                | Format::Pdf
         )
     }
 
-    /// Formats smelt can write natively without an external engine.
+    /// Formats smelt can write natively in the full core build without an
+    /// external engine. Availability in a specific build (e.g. WASM feature
+    /// subsets) is determined by `smelt_core::writer_for`.
     pub fn has_native_writer(self) -> bool {
         matches!(
             self,
-            Format::Markdown | Format::Html | Format::Text | Format::Csv | Format::Tsv
+            Format::Markdown
+                | Format::Html
+                | Format::Text
+                | Format::Csv
+                | Format::Tsv
+                | Format::Epub
+                | Format::Pdf
         )
     }
 }
@@ -765,8 +781,9 @@ mod tests {
         assert!(Format::Text.has_native_reader());
         assert!(Format::Csv.has_native_reader());
         assert!(Format::Tsv.has_native_writer());
+        assert!(Format::Epub.has_native_reader());
+        assert!(Format::Pdf.has_native_writer());
         assert!(!Format::Docx.has_native_reader());
-        assert!(!Format::Pdf.has_native_writer());
         assert!(!Format::Unknown.has_native_reader());
     }
 }

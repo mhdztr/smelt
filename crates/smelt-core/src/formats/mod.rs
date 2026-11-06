@@ -7,9 +7,13 @@
 
 pub mod csv;
 mod delimited;
+#[cfg(feature = "epub")]
 pub mod epub;
+#[cfg(feature = "html")]
 pub mod html;
+#[cfg(feature = "markdown")]
 pub mod markdown;
+#[cfg(feature = "pdf")]
 pub mod pdf;
 pub mod text;
 pub mod tsv;
@@ -101,7 +105,7 @@ mod helper_tests {
 
 /// Cross-format roundtrips compare `Document` values across converters
 /// (AGENTS.md testing rule), never raw text.
-#[cfg(test)]
+#[cfg(all(test, feature = "markdown", feature = "html", feature = "text"))]
 mod cross_format_tests {
     use smelt_detect::Format;
 

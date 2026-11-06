@@ -11,7 +11,7 @@ name = "smelt"
 path = "src/main.rs"
 
 [dependencies]
-smelt-core = { path = "../smelt-core" }
+smelt-core = { path = "../smelt-core", features = ["native-full"] }
 smelt-formats = { path = "../smelt-formats" }
 smelt-detect = { path = "../smelt-detect" }
 clap = { version = "4", features = ["derive", "string"] }

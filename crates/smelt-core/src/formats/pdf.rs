@@ -1,5 +1,6 @@
 //! PDF converter: PDF text extraction and text-layer writing.
 
+#[cfg(feature = "rayon")]
 use rayon::prelude::*;
 use smelt_detect::Format;
 
@@ -28,7 +29,8 @@ impl Reader for PdfReader {
                 message: "empty pdf".to_string(),
             });
         }
-        // Page-parallel processing with rayon
+        // Page-parallel processing with rayon when available
+        #[cfg(feature = "rayon")]
         let page_texts: Vec<Option<String>> = (0..num_pages)
             .into_par_iter()
             .map(|i| {
@@ -44,6 +46,24 @@ impl Reader for PdfReader {
                         let _ = contents;
                     }
                     // As fallback, search in raw page data if accessible
+                    if !extracted.is_empty() {
+                        Some(extracted)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+        #[cfg(not(feature = "rayon"))]
+        let page_texts: Vec<Option<String>> = (0..num_pages)
+            .map(|i| {
+                if let Ok(page) = doc.get_page(i) {
+                    if let Some(ref contents) = page.contents {
+                        let _ = contents;
+                    }
+                    let extracted = String::new();
                     if !extracted.is_empty() {
                         Some(extracted)
                     } else {
