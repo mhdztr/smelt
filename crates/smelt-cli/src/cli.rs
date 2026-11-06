@@ -74,6 +74,9 @@ pub enum Command {
 
     /// OCR for images and scanned PDFs
     Ocr(OcrArgs),
+
+    /// Emit the man page
+    Man,
 }
 
 #[derive(Debug, Args)]

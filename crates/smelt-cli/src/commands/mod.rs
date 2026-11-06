@@ -5,6 +5,7 @@ pub mod convert;
 pub mod diff;
 pub mod doctor;
 pub mod info;
+pub mod man;
 pub mod ocr;
 pub mod watch;
 
