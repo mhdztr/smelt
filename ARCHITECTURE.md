@@ -145,6 +145,19 @@ binaries are dynamically linked against glibc (libc, libm, libgcc_s) in
 FFI/static-linking work must remain feature-gated per platform and keep the
 zero-required-runtime/native build constraints explicit.
 
+### Standalone distribution policy (pre-compiled / zero-dependency)
+
+The overarching distribution goal for `smelt` release packages is that users
+can download a single self-contained binary and immediately convert documents
+without having to install any external apps or runtimes (LibreOffice, Pandoc,
+Calibre, Python, or Node) separately on their systems:
+- Formats transition to native pure-Rust or statically linked readers/writers
+  inside `smelt-core` (such as native DOCX via ZIP/XML and native RTF).
+- External tools (`soffice`, `pandoc`, etc.) act strictly as optional runtime
+  accelerators for legacy/exotic edge cases, never required prerequisites for
+  end users.
+- Release artifacts are compiled as standalone, static executables (e.g. musl).
+
 ## Threading model
 
 - **rayon** for batch conversion (one task per file) and, in M2, for

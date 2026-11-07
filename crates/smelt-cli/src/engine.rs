@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-/// Engines reported by `smelt doctor` in M0 (docs/cli.md).
-pub const ENGINES: &[&str] = &["soffice", "tesseract", "pandoc"];
+/// Engines reported by `smelt doctor` (docs/cli.md).
+pub const ENGINES: &[&str] = &["soffice", "tesseract", "pandoc", "ebook-convert", "groff"];
 
 /// `--version` probe timeout (docs/cli.md: 5 s); a slow or hung engine
 /// degrades to path-only.

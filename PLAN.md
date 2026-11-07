@@ -23,12 +23,14 @@ record. Historical milestone records (M0-M4 targets) are preserved below.
 3. **Static FFI where it is faster.** Hot paths (PDF read, OCR, text shaping,
    compression) use C libraries statically linked via FFI: PDFium (BSD-3),
    Tesseract 5 + Leptonica, HarfBuzz/FriBidi, zlib-ng. See ADR 0001.
-4. **Zero required runtime.** One self-contained binary works on Linux,
-   macOS, and Windows. External tools are optional, detected at runtime,
-   reported by `smelt doctor`. No Python, no Node, ever. See ADR 0004.
-   Note: the M0 Linux build is dynamically linked against glibc (libc,
-   libm, libgcc_s); a fully static musl artifact is M4 release packaging
-   work, not a claim about today's binary.
+4. **Zero required runtime and self-contained packages.** One self-contained
+   binary works on Linux, macOS, and Windows. When users download `smelt`,
+   converters and core dependencies are pre-compiled into the single binary
+   so they do not have to install LibreOffice, pandoc, or other runtimes
+   separately. External tools are optional accelerators for legacy edge cases,
+   detected at runtime and reported by `smelt doctor`. No Python, no Node, ever.
+   See ADR 0004. Note: the M0 Linux build is dynamically linked against glibc;
+   a fully static musl artifact is M4 release packaging work.
 5. **CLI-first, zero remote domain footprint.** `smelt` is strictly a local
    tool. There are no hosted web servers, no public cloud endpoints, and no
    remote domain configuration to manage. For users who prefer a graphical
