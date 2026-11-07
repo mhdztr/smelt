@@ -6,7 +6,7 @@
 *.swp
 *.swo
 *~
-/.agent
+.agent/
 
 # Generated WASM packages (built by wasm-pack)
 crates/smelt-wasm/pkg/
