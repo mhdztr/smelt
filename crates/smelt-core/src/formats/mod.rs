@@ -9,8 +9,6 @@ pub mod csv;
 mod delimited;
 #[cfg(feature = "docx")]
 pub mod docx;
-#[cfg(feature = "odt")]
-pub mod odt;
 #[cfg(feature = "epub")]
 pub mod epub;
 #[cfg(feature = "html")]
