@@ -1,8 +1,0 @@
-# Mark agent skills, workflows, and frontend design references as vendored
-# so GitHub Linguist does not count them in repository language statistics.
-.agent/** linguist-vendored
-.agent/** linguist-detectable=false
-
-# Mark static browser demo as documentation
-demo/** linguist-documentation
-
