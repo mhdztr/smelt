@@ -1186,6 +1186,80 @@ fn pdf_roundtrip_via_cli() {
 }
 
 #[test]
+fn docx_roundtrip_via_cli() {
+    let dir = TempDir::new("docx");
+    let md = dir.file(
+        "in.md",
+        "# Hello Docx\n\nThis is native Word document conversion.\n",
+    );
+    let docx = dir.path().join("out.docx");
+    let out1 = run([
+        "convert",
+        md.to_str().unwrap(),
+        "-t",
+        "docx",
+        "-o",
+        docx.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out1), 0, "stderr: {}", stderr_of(&out1));
+    assert!(docx.exists(), "docx file created");
+
+    let html = dir.path().join("out.html");
+    let out2 = run([
+        "convert",
+        docx.to_str().unwrap(),
+        "-t",
+        "html",
+        "-o",
+        html.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out2), 0, "stderr: {}", stderr_of(&out2));
+    let content = fs::read_to_string(&html).expect("html written");
+    assert!(content.contains("Hello Docx"), "html content: {content}");
+    assert!(
+        content.contains("native Word document conversion"),
+        "html content: {content}"
+    );
+}
+
+#[test]
+fn rtf_roundtrip_via_cli() {
+    let dir = TempDir::new("rtf");
+    let md = dir.file(
+        "in.md",
+        "# Hello RTF\n\nThis is native Rich Text Format conversion.\n",
+    );
+    let rtf = dir.path().join("out.rtf");
+    let out1 = run([
+        "convert",
+        md.to_str().unwrap(),
+        "-t",
+        "rtf",
+        "-o",
+        rtf.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out1), 0, "stderr: {}", stderr_of(&out1));
+    assert!(rtf.exists(), "rtf file created");
+
+    let html = dir.path().join("out.html");
+    let out2 = run([
+        "convert",
+        rtf.to_str().unwrap(),
+        "-t",
+        "html",
+        "-o",
+        html.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out2), 0, "stderr: {}", stderr_of(&out2));
+    let content = fs::read_to_string(&html).expect("html written");
+    assert!(content.contains("Hello RTF"), "html content: {content}");
+    assert!(
+        content.contains("native Rich Text Format conversion"),
+        "html content: {content}"
+    );
+}
+
+#[test]
 fn diff_identical_files_reports_identical() {
     let dir = TempDir::new("diff-ident");
     let f1 = dir.file("f1.md", "# Title\n\nA paragraph.\n");

@@ -17,3 +17,6 @@ wasm = ["smelt-core/wasm"]
 smelt-core = { path = "../smelt-core", default-features = false, features = ["wasm"] }
 smelt-detect = { path = "../smelt-detect" }
 wasm-bindgen = "0.2"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-bulk-memory"]

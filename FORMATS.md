@@ -13,7 +13,7 @@ tool invocation).
 | Plain text | yes | yes | native | M0 | blank-line paragraph splitting on read; minimal structure on write |
 | CSV / TSV | yes | yes | native | M1 | first record is the header; each file becomes one strict IDM table; RFC-4180-style quoting |
 | EPUB | yes | yes | native (core, `zip`) | M1 | zip + XHTML spine; reuses the HTML converter. Not in wasm subset |
-| DOCX | yes | yes | LibreOffice (optional) | M1 | via soffice integration/pool path where available |
+| DOCX | yes | yes | native (core, `zip`) / LibreOffice | M1 | native pure-Rust reader and writer; LibreOffice pool fallback |
 | ODT | yes | yes | LibreOffice (optional) | M1 | via soffice integration/pool path where available |
 | ODS | yes | yes | LibreOffice (optional) | M1 | OpenDocument spreadsheet; detected in M0, converted via soffice |
 | ODP | yes | yes | LibreOffice (optional) | M1 | OpenDocument presentation; detected in M0, converted via soffice |
@@ -21,11 +21,11 @@ tool invocation).
 | XLSX | yes | yes | LibreOffice (optional) | M1 | sheets become tables; multi-sheet is lossy |
 | PDF | yes | yes | native (core, `pdf` + `lopdf`) | M2+ (implemented in core) | not PDFium FFI; page processing can use rayon in native builds. Not in wasm subset; fidelity/layout is limited compared to full PDF engines |
 | Searchable PDF | planned | planned | -- | future | no PDFium text-layer injection shipped in 2.0.0 |
-| LaTeX | planned | planned | pandoc (optional) | M3 | not shipped in 2.0.0 |
-| man / troff | planned | planned | groff (optional) | M3 | not shipped in 2.0.0 |
-| MOBI / AZW | planned | planned | calibre (optional) | M3 | not shipped in 2.0.0 |
+| LaTeX | yes | yes | pandoc (optional) | M3 | via pandoc pool when pandoc is installed on PATH |
+| man / troff | yes | no | groff (optional) | M3 | via groff pool when groff is installed on PATH |
+| MOBI / AZW | yes | yes | calibre (optional) | M3 | via calibre (`ebook-convert`) pool when installed on PATH |
 | Images / scanned PDF (OCR) | basic | no | `tesseract` CLI (optional) | M3 (basic) | `smelt ocr` shells out to `tesseract <file> stdout`; not Tesseract/Leptonica static FFI |
-| RTF | planned | planned | native | future | detection already ships in M0 |
+| RTF | yes | yes | native | M1 | native pure-Rust reader and writer |
 
 Support levels: `yes` = implemented in the default native build unless noted;
 `basic` = minimal implementation shipped; `planned` = not shipped in 2.0.0.

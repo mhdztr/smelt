@@ -392,6 +392,36 @@ fn run_file(args: &ConvertArgs, theme: &Theme, input: &Path) -> Result<(), Smelt
             )
         })?;
         (doc, out)
+    } else if let Ok(out) =
+        smelt_formats::PandocPool::new().convert(&bytes, source.ext(), target.ext())
+    {
+        (
+            smelt_core::Document {
+                meta: smelt_core::idm::Metadata::default(),
+                blocks: vec![],
+            },
+            out,
+        )
+    } else if let Ok(out) =
+        smelt_formats::CalibrePool::new().convert(&bytes, source.ext(), target.ext())
+    {
+        (
+            smelt_core::Document {
+                meta: smelt_core::idm::Metadata::default(),
+                blocks: vec![],
+            },
+            out,
+        )
+    } else if let Ok(out) =
+        smelt_formats::GroffPool::new().convert(&bytes, source.ext(), target.ext())
+    {
+        (
+            smelt_core::Document {
+                meta: smelt_core::idm::Metadata::default(),
+                blocks: vec![],
+            },
+            out,
+        )
     } else {
         let doc = read_document(source, &bytes).map_err(|e| {
             let msg = if e.is_unsupported() && is_soffice_format(source) {

@@ -93,8 +93,23 @@ fn restore_sigpipe_default() {}
 fn main() -> ExitCode {
     restore_sigpipe_default();
     let cli = Cli::parse();
-    let theme = Theme::new(cli.color);
-    match run(&cli, &theme) {
+    let config = config::Config::load();
+    let color = match cli.color {
+        crate::ui::ColorChoice::Auto => {
+            if let Some(cfg_color) = &config.color {
+                match cfg_color.as_str() {
+                    "always" => crate::ui::ColorChoice::Always,
+                    "never" => crate::ui::ColorChoice::Never,
+                    _ => crate::ui::ColorChoice::Auto,
+                }
+            } else {
+                crate::ui::ColorChoice::Auto
+            }
+        }
+        explicit => explicit,
+    };
+    let theme = Theme::new(color);
+    match run(&cli, &theme, color) {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             eprintln!("{}", theme.fail(&err.message));
@@ -105,9 +120,9 @@ fn main() -> ExitCode {
 
 /// Dispatch one parsed command. Owned here (not in `main`) so exit-code
 /// handling stays in one place and tests can reason about it.
-fn run(cli: &Cli, theme: &Theme) -> Result<(), SmeltError> {
+fn run(cli: &Cli, theme: &Theme, color: crate::ui::ColorChoice) -> Result<(), SmeltError> {
     match &cli.command {
-        Command::Convert(args) => commands::convert::run(args, theme, cli.color),
+        Command::Convert(args) => commands::convert::run(args, theme, color),
         Command::Info(args) => commands::info::run(args, theme),
         Command::Doctor => commands::doctor::run(theme),
         Command::Completions { shell } => commands::completions::run(*shell),

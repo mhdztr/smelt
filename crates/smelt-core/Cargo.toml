@@ -8,7 +8,7 @@ repository.workspace = true
 
 [features]
 default = ["native-full"]
-native-full = ["markdown", "html", "text", "csv", "tsv", "epub", "pdf", "rayon"]
+native-full = ["markdown", "html", "text", "csv", "tsv", "epub", "pdf", "docx", "rayon"]
 # wasm-safe subset: pure-Rust text/table formats with no C deps or rayon.
 wasm = ["markdown", "html", "text", "csv", "tsv"]
 markdown = ["dep:comrak"]
@@ -16,6 +16,7 @@ html = ["dep:scraper"]
 text = []
 csv = []
 tsv = []
+docx = ["dep:zip"]
 epub = ["dep:zip"]
 pdf = ["dep:pdf", "dep:lopdf"]
 rayon = ["dep:rayon"]

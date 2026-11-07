@@ -7,6 +7,8 @@
 
 pub mod csv;
 mod delimited;
+#[cfg(feature = "docx")]
+pub mod docx;
 #[cfg(feature = "epub")]
 pub mod epub;
 #[cfg(feature = "html")]
@@ -15,6 +17,7 @@ pub mod html;
 pub mod markdown;
 #[cfg(feature = "pdf")]
 pub mod pdf;
+pub mod rtf;
 pub mod text;
 pub mod tsv;
 

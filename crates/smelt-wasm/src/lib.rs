@@ -21,8 +21,10 @@ fn supported_format_exts() -> Vec<&'static str> {
         Format::Text,
         Format::Csv,
         Format::Tsv,
+        Format::Docx,
         Format::Epub,
         Format::Pdf,
+        Format::Rtf,
     ] {
         if reader_for(fmt).is_some() && writer_for(fmt).is_some() {
             names.push(fmt.ext());
@@ -222,8 +224,8 @@ mod tests {
 
     #[test]
     fn unsupported_in_build_errors_actionably() {
-        // office formats are never in the wasm build
-        let err = convert_impl(b"x", Some("docx"), "html", None).expect_err("should fail");
+        // office formats like odt have no native reader in this build
+        let err = convert_impl(b"x", Some("odt"), "html", None).expect_err("should fail");
         assert!(err.contains("no native reader") || err.contains("unknown source"));
     }
 

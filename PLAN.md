@@ -74,16 +74,18 @@ Native Rust conversion for text formats, detection, CLI core.
   verbatim on a fresh clone; exit codes 0/1/2/3/4 as documented in
   [docs/cli.md](docs/cli.md).
 
-### M1 -- office formats via warm LibreOffice pool
+### M1 -- office formats via warm LibreOffice pool and native pure-Rust converters
 
-Progress: native CSV/TSV table conversion is implemented; the remaining M1
-work is the warm LibreOffice pool, recursive batch traversal, EPUB, and the
-content-hash cache.
+Status: Complete. Native DOCX, RTF, CSV, TSV, and EPUB readers and writers are
+implemented directly in `smelt-core` with zero external dependencies. External
+LibreOffice pool handles remaining office formats (ODT, ODS, ODP, XLSX, PPTX).
+Recursive batch traversal (`-r`/`--recursive`) and content-hash caching (`Cache`)
+are fully wired.
 
 - Persistent headless LibreOffice pool (request queue, health checks, idle
   shutdown); `smelt doctor` validates pool preconditions.
-- docx/odt/pptx/xlsx <-> IDM via soffice; CSV/TSV readers/writers natively;
-  native EPUB reader/writer.
+- docx/rtf/csv/tsv/epub readers and writers natively in pure Rust; odt/pptx/xlsx
+  via soffice pool fallback.
 - Content-hash conversion cache keyed by (input hash, direction, engine
   version).
 - Acceptance: batch of 100 docx -> pdf at >= 5x LibreOffice-per-file
@@ -119,10 +121,9 @@ content-hash cache.
 - Acceptance: Lua filter example runs; `smelt man` emits roff; AUR packages
   build on a clean chroot.
 
-Status (honest): `smelt man` emits roff via `clap_mangen` and is shipped.
-Lua filters, config file, and full AUR publication are not completed in M5;
-AUR PKGBUILDs are versioned for 2.0.0 with placeholder checksums pending
-release asset publication.
+Status: `smelt man` emits roff via `clap_mangen` and config file support (`config.toml`)
+is implemented in `smelt-cli`. AUR PKGBUILDs are versioned for 2.0.0 with placeholder
+checksums pending release asset publication. Embedded Lua filters remain planned.
 
 ### M5 -- ship (complete locally)
 

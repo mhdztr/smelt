@@ -41,6 +41,9 @@ pub fn reader_for(fmt: Format) -> Option<&'static dyn Reader> {
         Format::Text => Some(&formats::text::TextReader),
         Format::Csv => Some(&formats::csv::CsvReader),
         Format::Tsv => Some(&formats::tsv::TsvReader),
+        Format::Rtf => Some(&formats::rtf::RtfReader),
+        #[cfg(feature = "docx")]
+        Format::Docx => Some(&formats::docx::DocxReader),
         #[cfg(feature = "epub")]
         Format::Epub => Some(&formats::epub::EpubReader),
         #[cfg(feature = "pdf")]
@@ -60,6 +63,9 @@ pub fn writer_for(fmt: Format) -> Option<&'static dyn Writer> {
         Format::Text => Some(&formats::text::TextWriter),
         Format::Csv => Some(&formats::csv::CsvWriter),
         Format::Tsv => Some(&formats::tsv::TsvWriter),
+        Format::Rtf => Some(&formats::rtf::RtfWriter),
+        #[cfg(feature = "docx")]
+        Format::Docx => Some(&formats::docx::DocxWriter),
         #[cfg(feature = "epub")]
         Format::Epub => Some(&formats::epub::EpubWriter),
         #[cfg(feature = "pdf")]
@@ -91,7 +97,7 @@ mod tests {
 
     #[test]
     fn dispatch_covers_native_formats_only() {
-        for fmt in [Format::Text, Format::Csv, Format::Tsv] {
+        for fmt in [Format::Text, Format::Csv, Format::Tsv, Format::Rtf] {
             assert!(reader_for(fmt).is_some(), "reader for {fmt:?}");
             assert!(writer_for(fmt).is_some(), "writer for {fmt:?}");
         }
@@ -115,14 +121,19 @@ mod tests {
             assert!(reader_for(Format::Pdf).is_some());
             assert!(writer_for(Format::Pdf).is_some());
         }
+        #[cfg(feature = "docx")]
+        {
+            assert!(reader_for(Format::Docx).is_some());
+            assert!(writer_for(Format::Docx).is_some());
+        }
         for fmt in [
+            #[cfg(not(feature = "docx"))]
             Format::Docx,
             Format::Odt,
             Format::Ods,
             Format::Odp,
             Format::Xlsx,
             Format::Pptx,
-            Format::Rtf,
             Format::Unknown,
         ] {
             assert!(reader_for(fmt).is_none(), "reader for {fmt:?}");
@@ -146,7 +157,7 @@ mod tests {
     /// CLI keeps exit code 3, never `ReadError::Parse` (exit 1).
     #[test]
     fn read_document_reports_unsupported_without_a_reader() {
-        let err = read_document(Format::Docx, b"not a docx").expect_err("unsupported");
+        let err = read_document(Format::Odt, b"not an odt").expect_err("unsupported");
         assert!(err.is_unsupported());
     }
 }
