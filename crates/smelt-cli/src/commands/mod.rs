@@ -7,6 +7,7 @@ pub mod doctor;
 pub mod info;
 pub mod man;
 pub mod ocr;
+pub mod ui_server;
 pub mod watch;
 
 use std::path::Path;

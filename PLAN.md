@@ -102,7 +102,8 @@ content-hash cache.
   mobi/azw; Tesseract 5 + Leptonica static OCR for images and scanned PDFs;
   groff for man/troff.
 - `watch` (directory watching + incremental convert), `diff` (semantic diff
-  on the IDM), `ocr` subcommand.
+  on the IDM with metadata and block-level diffing), `ocr` subcommand, and `ui`
+  (local offline localhost GUI).
 - Acceptance: each engine optional -- smelt with none of them installed still
   passes the full test suite; OCR fixture pass; `watch` reacts to file
   changes within 1 s.

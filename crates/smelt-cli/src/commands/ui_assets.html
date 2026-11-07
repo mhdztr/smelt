@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>smelt · local converter</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: oklch(0.98 0.005 240);
+      --bg-panel: oklch(0.99 0.003 240);
+      --bg-subtle: oklch(0.94 0.008 240);
+      --border: oklch(0.88 0.01 240);
+      --border-focus: oklch(0.5 0.05 240);
+      --text: oklch(0.2 0.02 240);
+      --text-muted: oklch(0.48 0.02 240);
+      --accent: oklch(0.35 0.04 240);
+      --accent-hover: oklch(0.25 0.04 240);
+      --accent-text: oklch(0.98 0.005 240);
+      --error-bg: oklch(0.95 0.04 25);
+      --error-text: oklch(0.45 0.15 25);
+      --success-bg: oklch(0.95 0.04 145);
+      --success-text: oklch(0.4 0.12 145);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: oklch(0.16 0.01 240);
+        --bg-panel: oklch(0.2 0.012 240);
+        --bg-subtle: oklch(0.24 0.015 240);
+        --border: oklch(0.3 0.015 240);
+        --border-focus: oklch(0.65 0.05 240);
+        --text: oklch(0.92 0.01 240);
+        --text-muted: oklch(0.65 0.015 240);
+        --accent: oklch(0.85 0.02 240);
+        --accent-hover: oklch(0.95 0.01 240);
+        --accent-text: oklch(0.16 0.01 240);
+        --error-bg: oklch(0.25 0.06 25);
+        --error-text: oklch(0.85 0.1 25);
+        --success-bg: oklch(0.25 0.05 145);
+        --success-text: oklch(0.85 0.1 145);
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: clamp(1rem, 3vw, 2.5rem);
+      max-width: 1200px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+    }
+    h1 {
+      font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .tagline {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .badge {
+      font-size: 0.75rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    main {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      flex: 1;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+    label {
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    select, input[type="file"], button {
+      font: inherit;
+      color: inherit;
+      border: 1px solid var(--border);
+      background: var(--bg-subtle);
+      border-radius: 6px;
+      padding: 0.45rem 0.75rem;
+      outline: none;
+      transition: border-color 0.15s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    select:focus-visible, button:focus-visible {
+      border-color: var(--border-focus);
+    }
+    .btn-convert {
+      background: var(--accent);
+      color: var(--accent-text);
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      margin-left: auto;
+      padding: 0.5rem 1.25rem;
+      transition: transform 0.1s ease, opacity 0.15s ease;
+    }
+    .btn-convert:hover:not(:disabled) {
+      opacity: 0.92;
+      transform: translateY(-1px);
+    }
+    .btn-convert:active:not(:disabled) {
+      transform: translateY(0);
+    }
+    .btn-convert:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      flex: 1;
+    }
+    @media (max-width: 768px) {
+      .workspace { grid-template-columns: 1fr; }
+      .btn-convert { margin-left: 0; width: 100%; }
+    }
+    .pane {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .pane-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    textarea {
+      width: 100%;
+      flex: 1;
+      min-height: 380px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-subtle);
+      color: var(--text);
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    textarea:focus {
+      border-color: var(--border-focus);
+    }
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      padding: 1.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+    }
+    .dropzone.dragover {
+      border-color: var(--border-focus);
+      background: var(--bg-subtle);
+    }
+    .status-bar {
+      padding: 0.6rem 0.85rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      display: none;
+      animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-2px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .status-bar.ok {
+      display: block;
+      background: var(--success-bg);
+      color: var(--success-text);
+      border: 1px solid currentColor;
+    }
+    .status-bar.error {
+      display: block;
+      background: var(--error-bg);
+      color: var(--error-text);
+      border: 1px solid currentColor;
+    }
+    .btn-secondary {
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>smelt</h1>
+      <span class="tagline">local document converter</span>
+    </div>
+    <div class="badge">127.0.0.1 · offline</div>
+  </header>
+
+  <main>
+    <div class="controls">
+      <div class="control-group">
+        <label for="file-input">File:</label>
+        <input type="file" id="file-input" aria-label="Choose file to convert">
+      </div>
+      <div class="control-group">
+        <label for="source-fmt">Source:</label>
+        <select id="source-fmt">
+          <option value="auto">Auto-detect</option>
+          <option value="md">Markdown</option>
+          <option value="html">HTML</option>
+          <option value="txt">Plain Text</option>
+          <option value="csv">CSV</option>
+          <option value="tsv">TSV</option>
+          <option value="docx">DOCX</option>
+          <option value="pdf">PDF</option>
+          <option value="epub">EPUB</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <span>→</span>
+        <label for="target-fmt">Target:</label>
+        <select id="target-fmt">
+          <option value="html">HTML (.html)</option>
+          <option value="md">Markdown (.md)</option>
+          <option value="txt">Plain Text (.txt)</option>
+          <option value="csv">CSV (.csv)</option>
+          <option value="tsv">TSV (.tsv)</option>
+          <option value="pdf">PDF (.pdf)</option>
+          <option value="epub">EPUB (.epub)</option>
+        </select>
+      </div>
+      <button class="btn-convert" id="btn-convert">Convert</button>
+    </div>
+
+    <div id="status-bar" class="status-bar" role="status"></div>
+
+    <div class="workspace">
+      <div class="pane">
+        <div class="pane-header">
+          <span>Input</span>
+          <span id="input-stats" class="badge">0 bytes</span>
+        </div>
+        <div id="dropzone" class="dropzone">Drop file here or paste document below</div>
+        <textarea id="input-text" placeholder="# Welcome to smelt&#10;&#10;Paste markdown, HTML, or plain text here, or drop a file above." spellcheck="false"></textarea>
+      </div>
+
+      <div class="pane">
+        <div class="pane-header">
+          <span>Output</span>
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <button id="btn-download" class="btn-secondary" disabled>Download</button>
+            <span id="output-stats" class="badge">idle</span>
+          </div>
+        </div>
+        <textarea id="output-text" placeholder="Converted result will appear here." readonly spellcheck="false"></textarea>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const fileInput = document.getElementById('file-input');
+    const sourceFmt = document.getElementById('source-fmt');
+    const targetFmt = document.getElementById('target-fmt');
+    const btnConvert = document.getElementById('btn-convert');
+    const btnDownload = document.getElementById('btn-download');
+    const inputText = document.getElementById('input-text');
+    const outputText = document.getElementById('output-text');
+    const dropzone = document.getElementById('dropzone');
+    const statusBar = document.getElementById('status-bar');
+    const inputStats = document.getElementById('input-stats');
+    const outputStats = document.getElementById('output-stats');
+
+    let loadedBinary = null;
+    let loadedFilename = null;
+    let convertedBlob = null;
+
+    function setStatus(msg, type) {
+      if (!msg) {
+        statusBar.style.display = 'none';
+        return;
+      }
+      statusBar.textContent = msg;
+      statusBar.className = 'status-bar ' + (type || 'ok');
+    }
+
+    function updateInputStats(size, name) {
+      inputStats.textContent = (name ? name + ' · ' : '') + size + ' bytes';
+    }
+
+    inputText.addEventListener('input', () => {
+      loadedBinary = null;
+      loadedFilename = null;
+      updateInputStats(new TextEncoder().encode(inputText.value).length);
+    });
+
+    function handleFile(file) {
+      if (!file) return;
+      loadedFilename = file.name;
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (['md','markdown','mdown'].includes(ext)) sourceFmt.value = 'md';
+      else if (['html','htm','xhtml'].includes(ext)) sourceFmt.value = 'html';
+      else if (['csv'].includes(ext)) sourceFmt.value = 'csv';
+      else if (['tsv'].includes(ext)) sourceFmt.value = 'tsv';
+      else if (['pdf'].includes(ext)) sourceFmt.value = 'pdf';
+      else if (['epub'].includes(ext)) sourceFmt.value = 'epub';
+      else if (['docx'].includes(ext)) sourceFmt.value = 'docx';
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const buf = new Uint8Array(e.target.result);
+        loadedBinary = buf;
+        updateInputStats(buf.length, file.name);
+        // If it looks like text, preview it
+        let isText = true;
+        for (let i = 0; i < Math.min(buf.length, 1024); i++) {
+          if (buf[i] === 0) { isText = false; break; }
+        }
+        if (isText) {
+          inputText.value = new TextDecoder().decode(buf);
+        } else {
+          inputText.value = '[Binary document loaded: ' + file.name + ' (' + buf.length + ' bytes)]';
+        }
+        setStatus('Loaded ' + file.name, 'ok');
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    btnConvert.addEventListener('click', async () => {
+      let bodyData;
+      if (loadedBinary) {
+        bodyData = loadedBinary;
+      } else {
+        bodyData = new TextEncoder().encode(inputText.value);
+      }
+      if (!bodyData || bodyData.length === 0) {
+        setStatus('Nothing to convert: enter text or select a file.', 'error');
+        return;
+      }
+
+      btnConvert.disabled = true;
+      setStatus('Converting...', 'ok');
+      const target = targetFmt.value;
+      const source = sourceFmt.value === 'auto' ? '' : sourceFmt.value;
+
+      try {
+        const resp = await fetch('/api/convert?to=' + encodeURIComponent(target) + (source ? '&from=' + encodeURIComponent(source) : ''), {
+          method: 'POST',
+          body: bodyData,
+          headers: {
+            'X-Filename': loadedFilename || 'document'
+          }
+        });
+
+        if (!resp.ok) {
+          const errText = await resp.text();
+          throw new Error(errText || ('Conversion failed (HTTP ' + resp.status + ')'));
+        }
+
+        const resultBuf = new Uint8Array(await resp.arrayBuffer());
+        convertedBlob = new Blob([resultBuf]);
+        outputStats.textContent = resultBuf.length + ' bytes';
+        btnDownload.disabled = false;
+
+        let isText = true;
+        for (let i = 0; i < Math.min(resultBuf.length, 1024); i++) {
+          if (resultBuf[i] === 0) { isText = false; break; }
+        }
+        if (isText && target !== 'pdf' && target !== 'epub') {
+          outputText.value = new TextDecoder().decode(resultBuf);
+        } else {
+          outputText.value = '[Binary output: ' + resultBuf.length + ' bytes ready for download]';
+        }
+        setStatus('Converted successfully to ' + target.toUpperCase() + ' (' + resultBuf.length + ' bytes)', 'ok');
+      } catch (err) {
+        setStatus(err.message, 'error');
+        outputText.value = '';
+        btnDownload.disabled = true;
+        outputStats.textContent = 'failed';
+      } finally {
+        btnConvert.disabled = false;
+      }
+    });
+
+    btnDownload.addEventListener('click', () => {
+      if (!convertedBlob) return;
+      const target = targetFmt.value;
+      const base = loadedFilename ? loadedFilename.replace(/\.[^/.]+$/, '') : 'converted';
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(convertedBlob);
+      a.download = base + '.' + target;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  </script>
+</body>
+</html>
+

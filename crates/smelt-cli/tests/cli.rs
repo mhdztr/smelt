@@ -1184,3 +1184,93 @@ fn pdf_roundtrip_via_cli() {
     let content = fs::read_to_string(&md2).expect("md written");
     assert!(content.contains("Hello"));
 }
+
+#[test]
+fn diff_identical_files_reports_identical() {
+    let dir = TempDir::new("diff-ident");
+    let f1 = dir.file("f1.md", "# Title\n\nA paragraph.\n");
+    let f2 = dir.file("f2.md", "# Title\n\nA paragraph.\n");
+
+    let out = run(["diff", f1.to_str().unwrap(), f2.to_str().unwrap()]);
+    assert_eq!(code(&out), 0, "stderr: {}", stderr_of(&out));
+    assert_eq!(stdout_of(&out).trim(), "identical");
+}
+
+#[test]
+fn diff_different_files_shows_structural_changes() {
+    let dir = TempDir::new("diff-diff");
+    let f1 = dir.file("f1.md", "# First Title\n\nParagraph one.\n");
+    let f2 = dir.file("f2.md", "## Second Title\n\nParagraph two.\n");
+
+    let out = run(["diff", f1.to_str().unwrap(), f2.to_str().unwrap()]);
+    assert_eq!(code(&out), 0, "stderr: {}", stderr_of(&out));
+    let stdout = stdout_of(&out);
+    assert!(stdout.contains("different"));
+    assert!(stdout.contains("Heading(level 1"));
+    assert!(stdout.contains("Heading(level 2"));
+}
+
+#[test]
+fn ui_help_shows_options() {
+    let out = run(["ui", "--help"]);
+    assert_eq!(code(&out), 0, "stderr: {}", stderr_of(&out));
+    let stdout = stdout_of(&out);
+    assert!(stdout.contains("--port"));
+    assert!(stdout.contains("--no-open"));
+}
+
+#[test]
+fn ui_server_serves_html_and_converts() {
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    // Allocate an ephemeral port
+    let ephemeral = TcpListener::bind("127.0.0.1:0").expect("ephemeral port bound");
+    let port = ephemeral.local_addr().unwrap().port();
+    drop(ephemeral);
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_smelt"))
+        .args(["ui", "--port", &port.to_string(), "--no-open"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("smelt ui child spawned");
+
+    // Wait for server to bind and listen
+    let mut connected = false;
+    for _ in 0..20 {
+        sleep(Duration::from_millis(50));
+        if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", port)) {
+            // Test GET /
+            let req = "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n";
+            stream.write_all(req.as_bytes()).unwrap();
+            let mut response = String::new();
+            stream.read_to_string(&mut response).unwrap();
+            assert!(response.contains("HTTP/1.1 200 OK"));
+            assert!(response.contains("smelt"));
+            connected = true;
+            break;
+        }
+    }
+    assert!(connected, "failed to connect to local smelt ui server");
+
+    // Test POST /api/convert
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("connected for convert");
+    let body = "# Test Header\n";
+    let req = format!(
+        "POST /api/convert?to=html HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    );
+    stream.write_all(req.as_bytes()).unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    assert!(response.contains("HTTP/1.1 200 OK"));
+    assert!(response.contains("<h1>Test Header</h1>"));
+
+    // Cleanup child
+    let _ = child.kill();
+    let _ = child.wait();
+}

@@ -115,5 +115,6 @@ fn run(cli: &Cli, theme: &Theme) -> Result<(), SmeltError> {
         Command::Diff(args) => commands::diff::run(args),
         Command::Ocr(args) => commands::ocr::run(args),
         Command::Man => commands::man::run(),
+        Command::Ui(args) => commands::ui_server::run(args),
     }
 }

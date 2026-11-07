@@ -306,16 +306,32 @@ inferred from the input path + target extension; quiet mode for the convert
 call). Errors are reported to stderr and watching continues. No stable exit
 code is specified for the long-running loop beyond startup/usage errors.
 
-## `smelt diff` (basic, M3/2.0.0)
+## `smelt diff` (semantic IDM diff)
 
 ```
 smelt diff <FILE1> <FILE2>
 ```
 
-Reads both files, detects formats (falling back to plain text when detection
-fails), parses to the IDM, and compares documents. Prints `identical` when
-documents are equal, or `different (<n> blocks vs <m> blocks)` when not.
-This is a minimal structural summary, not a full semantic/line diff.
+Reads both files, detects formats, parses them to the IDM, and structurally
+compares document metadata and block sequences.
+Prints `identical` when documents have matching IDM structures, or details
+differences (metadata title/author changes, block additions `[+]`, and
+block removals `[-]` with summarized block type and content preview).
+
+## `smelt ui` (localhost GUI)
+
+```
+smelt ui [OPTIONS]
+```
+
+Launches an offline, local graphical user interface on `127.0.0.1` and opens
+the default browser. Allows drag-and-drop conversion and preview across all
+supported core formats with zero external network access.
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `-p`, `--port <PORT>` | Port to bind to on `127.0.0.1` | `8000` |
+| `--no-open` | Do not automatically open the browser | `false` |
 
 ## `smelt ocr` (basic, M3/2.0.0)
 
@@ -342,8 +358,6 @@ to stdout.
 | Command | Milestone | Purpose |
 | --- | --- | --- |
 | `smelt watch` (recursive/watchman-grade) | future | richer watching semantics than basic polling |
-| `smelt diff` (full semantic diff) | future | detailed IDM structural diff output |
-| `smelt ui` (localhost GUI) | future | launch offline local GUI on `127.0.0.1` in default browser |
 
 ## CLI-First and Localhost GUI Philosophy
 

@@ -77,6 +77,9 @@ pub enum Command {
 
     /// Emit the man page
     Man,
+
+    /// Launch local graphical interface on localhost in the browser
+    Ui(UiArgs),
 }
 
 #[derive(Debug, Args)]
@@ -145,4 +148,15 @@ pub struct OcrArgs {
     /// Target format
     #[arg(short = 't', long = "to")]
     pub to: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct UiArgs {
+    /// Port to bind to on 127.0.0.1 (default: 8000)
+    #[arg(short, long, default_value = "8000")]
+    pub port: u16,
+
+    /// Do not automatically open the browser
+    #[arg(long)]
+    pub no_open: bool,
 }
