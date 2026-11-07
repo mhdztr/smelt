@@ -36,7 +36,9 @@ actionable exit-3/unsupported message).
 **WASM subset (M5 / 2.0.0):** `smelt-wasm` supports Markdown, HTML, plain
 text, CSV, and TSV via `smelt-core`'s `wasm` feature set (pure Rust). EPUB,
 PDF, external engines, CLI command behavior, and pool orchestration are not
-available in the browser build.
+available in the browser build. This subset runs strictly client-side and offline
+for the static demo and localhost GUI (`127.0.0.1`), with zero external server
+or remote domain dependency.
 
 ## Detection rules (M0, implemented)
 

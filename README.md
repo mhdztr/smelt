@@ -15,10 +15,22 @@ reader or one writer, not N x M converters.
   never requirements. No Python, no Node. Release Linux binaries are
   dynamically linked against glibc (libc, libm, libgcc_s); fully static musl
   artifacts are not a 2.0.0 ship claim.
+- **CLI-first, zero domain hassle**: Designed purely as a fast local CLI.
+  No remote web servers, no public cloud endpoints, and no domain names to manage.
+  For users needing a graphical interface, the CLI provides an optional local
+  GUI (`smelt ui`) bound strictly to `localhost` (`127.0.0.1`) in the browser.
 - **Browser bindings**: `smelt-wasm` exposes core conversion in the browser
   for a wasm-safe format subset (md/html/txt/csv/tsv). The included demo is a
   static client-side page -- not a backend conversion server and not a CLI
   replacement.
+- **Ponytail engineering philosophy**: All contributions and AI sessions follow
+  the Ponytail methodology (`.agent/skills/cleancode-ponytail/ponytail`):
+  the smallest working change, strict YAGNI, standard library first, no code bloat,
+  and explicit debt tracking.
+- **Anti-slop frontend & interaction design**: Any UI work (localhost GUI / WASM demo)
+  strictly follows the design skills in `.agent/skills/` (`frontend-design.md`,
+  `design-taste-frontend`, and `design-kowalski`): distinctive typography, OKLCH
+  palettes, Apple-grade fluid physical motion, and zero AI template tropes.
 - **Honest output**: actionable errors, documented exit codes, clean Unicode
   UI with automatic ASCII fallback.
 
@@ -107,7 +119,9 @@ printf 'Two\n\nsome text\n' > docs-in/two.md
 | [DESIGN.md](DESIGN.md) | CLI UX spec: glyphs, colors, output samples |
 | [FORMATS.md](FORMATS.md) | Full format matrix and lossy-case list |
 | [PERFORMANCE.md](PERFORMANCE.md) | Speed targets and perf guardrails |
-| [AGENTS.md](AGENTS.md) | Conventions and rules for AI builders |
+| [AGENTS.md](AGENTS.md) | Conventions and rules for AI builders (Mandatory Skills Hierarchy) |
+| [.agent/skills/](.agent/skills/) | Agent skills: Clean code Ponytail, frontend design, animation |
+| [.agent/workflows/](.agent/workflows/) | Design and audit workflows: audit, polish, simplify, harden |
 | [docs/cli.md](docs/cli.md) | Full command reference and exit codes |
 | [docs/idm-spec.md](docs/idm-spec.md) | Intermediate Document Model spec |
 

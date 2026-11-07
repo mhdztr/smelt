@@ -1,6 +1,6 @@
 # smelt-wasm
 
-Browser bindings for smelt document conversion. Conversions run entirely in WebAssembly with no backend conversion server, no filesystem access, and no external engines.
+Browser bindings for smelt document conversion. Conversions run entirely in WebAssembly with no backend conversion server, no remote domain requirement, no filesystem access, and no external engines. Designed to power offline, local-only client-side tools and the planned `smelt ui` localhost GUI (`127.0.0.1`).
 
 ## Supported formats (wasm build)
 

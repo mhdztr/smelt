@@ -49,6 +49,17 @@ ships the harness output that proves it.
    format allows chunking (OOXML zip scanning, PDF pages).
 5. **Cache (M1+) is keyed by content hash + engine version.** No mtime-based
    keys; no caching across differing engine versions.
+6. **Ponytail constraint: lean code and zero bloat.** Unneeded abstraction
+   layers, wrappers, and unused dependencies directly inflate binary size
+   and harm the ~5 ms startup budget. Adhere to Ponytail
+   (`.agent/skills/cleancode-ponytail/ponytail`): standard library first,
+   one line over fifty, no speculative features, and track simplifications
+   explicitly via `// shortcut: <ceiling>, <trigger>`.
+7. **Frontend and animation performance.** When building graphical components
+   or local GUI views (`smelt ui`, `demo/`), adhere to
+   `.agent/skills/design-kowalski/animation-performance/SKILL.md`: animate only
+   `transform` and `opacity`; eliminate layout thrashing; ensure 60fps interaction
+   budgets without dropped frames; respect `prefers-reduced-motion`.
 
 ## Measured baseline
 

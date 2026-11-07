@@ -29,6 +29,27 @@ record. Historical milestone records (M0-M4 targets) are preserved below.
    Note: the M0 Linux build is dynamically linked against glibc (libc,
    libm, libgcc_s); a fully static musl artifact is M4 release packaging
    work, not a claim about today's binary.
+5. **CLI-first, zero remote domain footprint.** `smelt` is strictly a local
+   tool. There are no hosted web servers, no public cloud endpoints, and no
+   remote domain configuration to manage. For users who prefer a graphical
+   interface over terminal commands, the CLI provides an optional command
+   (`smelt ui`) to serve a lightweight local UI strictly on `localhost`
+   (`127.0.0.1`) and launch the default browser. Everything runs offline
+   and client-side (powered by `smelt-wasm` or embedded assets) with zero
+   network exposure.
+6. **Ponytail lazy senior dev engineering.** The project strictly adheres
+   to the Ponytail methodology (`.agent/skills/cleancode-ponytail/ponytail`):
+   build the smallest change that completely works, enforce strict YAGNI
+   (skip speculative features, wrappers, and unused abstractions), prioritize
+   stdlib and existing dependencies, never break callers or tests, preserve
+   the ~5 ms startup budget, and track intentional simplifications with
+   `shortcut: <ceiling>, <trigger>` comments.
+7. **Anti-slop frontend and interaction design.** For any graphical UI
+   (`smelt ui`, `demo/`, `smelt-wasm`), the project enforces high design
+   standards from `.agent/skills/`:
+   - Anti-AI slop aesthetics (`frontend-design.md`).
+   - Professional product layout and clean copy (`design-taste-frontend`).
+   - Fluid physical motion and 60fps interaction engineering (`design-kowalski`).
 
 ## Milestones
 
@@ -117,12 +138,13 @@ release artifacts -- no backend conversion server.
   plain-text parity (detected Text read via Markdown reader). Unsupported
   formats and bad inputs return actionable JS errors; no panics on user input.
   v1 wasm formats: md/html/txt/csv/tsv.
-- **Static demo**: `demo/index.html` + `demo/main.js` + `demo/README.md`.
+- **Static demo and local UI**: `demo/index.html` + `demo/main.js` + `demo/README.md`.
   Client-side only; no backend conversion server. ES modules require static
   HTTP serving locally:
   `wasm-pack build crates/smelt-wasm --target web --out-dir ../../demo/pkg --release`
   then `python3 -m http.server --directory demo 8000` and open
-  `http://localhost:8000`.
+  `http://localhost:8000`. Serves as the foundation for the local `smelt ui`
+  localhost-only GUI command for non-terminal users (no remote domains).
 - **CI**: fmt, clippy, workspace tests, `cargo check -p smelt-wasm --target wasm32-unknown-unknown`,
   and a wasm-pack smoke build (web target) on push/PR.
 - **Release (`v*` tags)**: publishes `smelt-x86_64-unknown-linux-gnu.tar.gz`,

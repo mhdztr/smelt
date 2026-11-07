@@ -343,3 +343,14 @@ to stdout.
 | --- | --- | --- |
 | `smelt watch` (recursive/watchman-grade) | future | richer watching semantics than basic polling |
 | `smelt diff` (full semantic diff) | future | detailed IDM structural diff output |
+| `smelt ui` (localhost GUI) | future | launch offline local GUI on `127.0.0.1` in default browser |
+
+## CLI-First and Localhost GUI Philosophy
+
+`smelt` is engineered purely as a local CLI tool with zero external server
+or remote domain overhead:
+- No remote web services or hosted web domains.
+- For users who cannot or prefer not to use the terminal, the planned `smelt ui`
+  command opens a local, offline browser GUI strictly on `http://127.0.0.1:<port>`.
+- Client-side execution powered by the WASM engine (`smelt-wasm`) or embedded assets;
+  no external network requests or analytics.

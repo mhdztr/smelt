@@ -36,7 +36,7 @@ in `smelt-detect` and re-exported by `smelt-core`.
 `smelt-formats` is deferred for heavier engine adapters/FFI; native format
 implementations live in `smelt-core/src/formats/` and are feature-gated.
 
-## WASM bindings (M5)
+## WASM bindings and Localhost GUI (M5)
 
 `smelt-wasm` is a browser binding layer over `smelt-core`. It must not depend
 on `smelt-formats`, the CLI, terminal/UI code, or engine pool orchestration.
@@ -44,8 +44,36 @@ It uses `smelt-core` with `default-features = false, features = ["wasm"]` so
 the wasm build excludes syntect/onig, rayon, PDF, EPUB, and other non-wasm-safe
 or heavyweight dependencies. The v1 wasm surface exposes version, supported
 formats, detection, and byte/text conversion with actionable errors and no
-panics on user input. The demo is a static client-side page; conversion does
-not go through a backend server.
+panics on user input.
+
+### Localhost GUI architecture
+
+`smelt` is strictly a local tool with **zero remote server or domain dependencies**.
+There is no hosted web server, no public cloud conversion service, and no remote
+infrastructure.
+
+For users who cannot or prefer not to use the command line, the architecture
+provides a local graphical interface:
+- Initiated directly from the CLI (e.g. `smelt ui` / `--gui`).
+- Binds strictly to `localhost` (`127.0.0.1`) on an ephemeral or designated local port.
+- Opens the system's default browser directly to `http://127.0.0.1:<port>`.
+- Executes entirely offline and client-side (via `smelt-wasm` or embedded local static assets).
+- Closes cleanly when the user terminates the CLI process (`Ctrl+C`).
+- Adheres to frontend and interaction design standards in `.agent/skills/`
+  (`frontend-design.md`, `design-taste-frontend`, and `design-kowalski`).
+
+## Ponytail architectural guardrails
+
+All Rust modules in `smelt` must adhere to the Ponytail methodology
+(`.agent/skills/cleancode-ponytail/ponytail`):
+1. **YAGNI (You Aren't Gonna Need It)**: Do not create multi-layered abstractions,
+   generic factories, or speculative plugin hooks before a second real caller requires them.
+2. **Minimal dependency footprint**: Dependencies directly impact the ~5 ms
+   startup budget. Use standard library types and functions whenever possible.
+3. **Explicit debt markers**: Any simplified implementation or deferred edge case
+   must carry `// shortcut: <limit>, <trigger>` for tracking via `ponytail-debt`.
+4. **Resilient error paths**: Never panic on invalid user data. Bubble errors cleanly
+   through `SmeltError` to documented exit codes.
 
 ## Data flow
 

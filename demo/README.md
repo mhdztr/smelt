@@ -1,6 +1,8 @@
 # smelt demo (static, browser-side conversion)
 
-This demo uses `smelt-wasm` to convert documents entirely in the browser. There is **no backend conversion server**.
+This demo uses `smelt-wasm` to convert documents entirely in the browser. There is **no backend conversion server** and **no remote domain hosting**.
+
+It operates strictly locally (`localhost` / `127.0.0.1`), demonstrating the client-side conversion engine that powers the planned `smelt ui` command for users who prefer a graphical interface over the CLI.
 
 ## Build the WASM package
 

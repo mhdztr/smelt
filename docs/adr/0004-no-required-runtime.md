@@ -20,6 +20,11 @@ installation fragile and version conflicts common.
   feature they provide fails with an actionable message when absent, and
   the core (M0: md/html/txt) never needs them.
 - No Python. No Node. No shell-outs to user-land scripting runtimes, ever.
+- No remote web services, external cloud endpoints, or domain hosting. Any
+  future or optional GUI runs strictly offline on `localhost` (`127.0.0.1`)
+  via embedded assets or the WASM engine.
+- Development follows Ponytail principles (`.agent/skills/cleancode-ponytail/ponytail`):
+  YAGNI, standard library first, minimal diffs, and no runtime bloat.
 - Embedded scripting for users (Lua via mlua, vendored) ships inside the
   binary in M4 -- a feature, not a requirement.
 

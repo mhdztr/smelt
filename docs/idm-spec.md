@@ -90,6 +90,15 @@ lists and blockquotes.
 4. `Document` values implement `Debug + Clone + PartialEq + Serialize +
    Deserialize`; roundtrip tests compare `Document` values, never raw text.
 
+## Engineering philosophy and Ponytail adherence
+
+In alignment with Ponytail (`.agent/skills/cleancode-ponytail/ponytail`), the IDM intentionally favors
+simplicity and minimal node variance over fine-grained presentation semantics.
+Do not introduce speculative AST variants or attributes without a concrete,
+multi-format requirement. Reserve flags and variant additions until real
+reader/writer implementations require them. Deliberately deferred constructs
+must be documented in code comments with `shortcut: <limit>, <trigger>`.
+
 ## Non-goals for v0
 
 | Concept | Status | Reserved future names |

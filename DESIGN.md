@@ -16,6 +16,55 @@ color unconditionally.
    the ASCII fallbacks below, auto-detected.
 3. Everything else is plain ASCII.
 
+## Ponytail engineering principles
+
+All code and documentation adhere strictly to the Ponytail philosophy
+(`.agent/skills/cleancode-ponytail/ponytail`):
+- **Lazy senior developer default**: solve the problem with the least new code.
+- **YAGNI**: skip unused options, wrappers, and premature abstractions.
+- **Standard library and project-native idioms first**: one clean line beats 50 lines.
+- **Shortest working diff**: map callers before writing; fix root causes; never break callers.
+- **Debt tagging**: any intentional shortcut must be documented in comments:
+  `// shortcut: <limit>, <trigger>` for collection by `ponytail-debt`.
+- **End-of-change summary**: every prompt response delivering code must state
+  what was skipped and any remaining risks.
+
+## CLI-first and Localhost GUI UX
+
+`smelt` is built for the terminal first and foremost. There are no hosted
+web domains or remote web servers.
+
+For users who cannot use or prefer not to use the terminal:
+- The CLI provides an optional command (`smelt ui` / `--gui`) that launches a
+  lightweight graphical interface.
+- **Zero domain / hosting requirement**: strictly binds to `127.0.0.1` (`localhost`).
+- Automatically opens the default web browser.
+- Operates entirely offline and client-side (via `smelt-wasm` or embedded assets).
+- Terminal output remains clean and minimal:
+  ```
+  smelt ui: serving local GUI on http://127.0.0.1:8000 (Ctrl+C to quit)
+  ```
+
+### Local GUI & Web Frontend Design Standards
+
+Any frontend implementation (the WASM demo in `demo/` or the planned `smelt ui`)
+must strictly adhere to the skills in `.agent/skills/`:
+- **Anti-AI Slop ([`.agent/skills/frontend-design.md`](file:///home/pinefeast/Projects/smelt/.agent/skills/frontend-design.md))**:
+  - No generic AI tropes: no cyan/purple neon gradient text, no glassmorphism abuse, no repetitive card grids with generic icons, no modals when inline flows work.
+  - Perceptually uniform OKLCH palettes: tint neutrals toward the brand hue; avoid pure `#000` and `#fff`.
+  - Intentional typography: modular scale using `clamp()`, clear visual hierarchy, distinctive typefaces over overused defaults (avoid Inter, Roboto, Arial).
+- **Anti-Slop Structure ([`.agent/skills/design-taste-frontend/`](file:///home/pinefeast/Projects/smelt/.agent/skills/design-taste-frontend/))**:
+  - figma.com and x.ai bar: clean copy, one section per screen, equal left/right content edges.
+  - Real product UI renders rather than generic illustrations or empty containers.
+  - Quiet micro-interactions (subtle 2px hover lifts, gentle button press steps).
+- **Fluid Motion & Interaction ([`.agent/skills/design-kowalski/`](file:///home/pinefeast/Projects/smelt/.agent/skills/design-kowalski/))**:
+  - Apple-grade fluid physical motion: natural deceleration (exponential / ease-out curves), never bouncy or elastic.
+  - Strict performance: animate `transform` and `opacity` only; never animate layout properties (`width`, `height`, `padding`, `margin`).
+  - Choreographed transitions: clear lead and follow timing; respect `prefers-reduced-motion`.
+  - Responsive ergonomics: touch targets >= 44x44px, safe area insets on mobile.
+- **Workflows ([`.agent/workflows/`](file:///home/pinefeast/Projects/smelt/.agent/workflows/))**:
+  - Use `audit.md`, `polish.md`, and `harden.md` to review accessibility, performance, and responsive integrity.
+
 ## Glyph table
 
 | Meaning | Unicode | ASCII fallback |

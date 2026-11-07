@@ -13,8 +13,9 @@ Release Linux binaries are dynamically linked against glibc
 packages depend on `glibc`/`gcc-libs`. A fully static musl artifact is not
 part of the 2.0.0 ship claim. 2.0.0 releases publish x86_64 and aarch64 Linux
 tarballs plus a wasm web package; `smelt-bin` remains x86_64-only. No
-Python/Node runtime is required for native CLI conversions. The static demo
-is client-side only (served as static files) and not a backend service.
+Python/Node runtime is required for native CLI conversions. There are no
+remote web services or domain requirements; the browser bindings run client-side
+only (served statically on localhost) and not as a backend service.
 
 Note: `gh` is **not** installed on the maintainer machine -- everything here
 uses plain `git` plus the browser.
