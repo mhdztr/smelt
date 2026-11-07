@@ -148,6 +148,9 @@ pub struct OcrArgs {
     /// Target format
     #[arg(short = 't', long = "to")]
     pub to: Option<String>,
+    /// Output file (defaults to stdout)
+    #[arg(short = 'o', long = "output")]
+    pub output: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]

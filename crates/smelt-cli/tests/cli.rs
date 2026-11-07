@@ -1260,6 +1260,43 @@ fn rtf_roundtrip_via_cli() {
 }
 
 #[test]
+fn odt_roundtrip_via_cli() {
+    let dir = TempDir::new("odt");
+    let md = dir.file(
+        "in.md",
+        "# Hello ODT\n\nThis is native OpenDocument conversion.\n",
+    );
+    let odt = dir.path().join("out.odt");
+    let out1 = run([
+        "convert",
+        md.to_str().unwrap(),
+        "-t",
+        "odt",
+        "-o",
+        odt.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out1), 0, "stderr: {}", stderr_of(&out1));
+    assert!(odt.exists(), "odt file created");
+
+    let html = dir.path().join("out.html");
+    let out2 = run([
+        "convert",
+        odt.to_str().unwrap(),
+        "-t",
+        "html",
+        "-o",
+        html.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&out2), 0, "stderr: {}", stderr_of(&out2));
+    let content = fs::read_to_string(&html).expect("html written");
+    assert!(content.contains("Hello ODT"), "html content: {content}");
+    assert!(
+        content.contains("native OpenDocument conversion"),
+        "html content: {content}"
+    );
+}
+
+#[test]
 fn diff_identical_files_reports_identical() {
     let dir = TempDir::new("diff-ident");
     let f1 = dir.file("f1.md", "# Title\n\nA paragraph.\n");
@@ -1347,4 +1384,17 @@ fn ui_server_serves_html_and_converts() {
     // Cleanup child
     let _ = child.kill();
     let _ = child.wait();
+}
+
+#[test]
+fn ocr_reports_actionable_error_on_missing_input() {
+    let out = run(["ocr", "non_existent_file_xyz_123.png"]);
+    // If tesseract is not on PATH, exit code is 3 (unsupported); if present, exit code is 4 (missing file)
+    let c = code(&out);
+    assert!(c == 3 || c == 4, "expected exit 3 or 4, got {c}");
+    let err = stderr_of(&out);
+    assert!(
+        err.contains("tesseract") || err.contains("cannot read"),
+        "stderr must be actionable: {err}"
+    );
 }

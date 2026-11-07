@@ -111,6 +111,7 @@ impl Format {
                 | Format::Csv
                 | Format::Tsv
                 | Format::Docx
+                | Format::Odt
                 | Format::Epub
                 | Format::Pdf
                 | Format::Rtf
@@ -129,6 +130,7 @@ impl Format {
                 | Format::Csv
                 | Format::Tsv
                 | Format::Docx
+                | Format::Odt
                 | Format::Epub
                 | Format::Pdf
                 | Format::Rtf
@@ -789,6 +791,8 @@ mod tests {
         assert!(Format::Pdf.has_native_writer());
         assert!(Format::Docx.has_native_reader());
         assert!(Format::Docx.has_native_writer());
+        assert!(Format::Odt.has_native_reader());
+        assert!(Format::Odt.has_native_writer());
         assert!(Format::Rtf.has_native_reader());
         assert!(Format::Rtf.has_native_writer());
         assert!(!Format::Unknown.has_native_reader());

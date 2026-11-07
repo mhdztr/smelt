@@ -336,13 +336,10 @@ supported core formats with zero external network access.
 ## `smelt ocr` (basic, M3/2.0.0)
 
 ```
-smelt ocr <FILE>
+smelt ocr [-t <FMT>] [-o <OUTPUT>] <FILE>
 ```
 
-Requires `tesseract` on `PATH`. Runs `tesseract <file> stdout` and writes
-recognized text to stdout. Fails with an actionable/unsupported-style error
-when `tesseract` is unavailable or the command fails. Not a static Tesseract
-FFI integration.
+Requires `tesseract` on `PATH`. Runs `tesseract <file> stdout` to extract text from images or scanned documents. When `-t/--to` is provided, parses recognized text through the IDM and writes formatted output in the requested format (to `-o <OUTPUT>` if specified, or stdout). Fails with an actionable/unsupported-style error when `tesseract` is unavailable or the command fails. Not a static Tesseract FFI integration.
 
 ## `smelt man` (M4/2.0.0)
 

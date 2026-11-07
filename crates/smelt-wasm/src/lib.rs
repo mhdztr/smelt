@@ -22,6 +22,7 @@ fn supported_format_exts() -> Vec<&'static str> {
         Format::Csv,
         Format::Tsv,
         Format::Docx,
+        Format::Odt,
         Format::Epub,
         Format::Pdf,
         Format::Rtf,
@@ -224,8 +225,8 @@ mod tests {
 
     #[test]
     fn unsupported_in_build_errors_actionably() {
-        // office formats like odt have no native reader in this build
-        let err = convert_impl(b"x", Some("odt"), "html", None).expect_err("should fail");
+        // office formats like ods have no native reader in any build
+        let err = convert_impl(b"x", Some("ods"), "html", None).expect_err("should fail");
         assert!(err.contains("no native reader") || err.contains("unknown source"));
     }
 

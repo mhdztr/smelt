@@ -186,28 +186,111 @@ impl Writer for PdfWriter {
 
         let mut doc_pdf = LopdfDoc::with_version("1.5");
         let pages_id = doc_pdf.new_object_id();
-        let font_id = doc_pdf.add_object(Dictionary::from_iter(vec![
+        let font_f1 = doc_pdf.add_object(Dictionary::from_iter(vec![
             ("Type", "Font".into()),
             ("Subtype", "Type1".into()),
             ("BaseFont", "Helvetica".into()),
         ]));
+        let font_f2 = doc_pdf.add_object(Dictionary::from_iter(vec![
+            ("Type", "Font".into()),
+            ("Subtype", "Type1".into()),
+            ("BaseFont", "Helvetica-Bold".into()),
+        ]));
         let resources_id = doc_pdf.add_object(Dictionary::from_iter(vec![(
             "Font",
-            Dictionary::from_iter(vec![("F1", font_id.into())]).into(),
+            Dictionary::from_iter(vec![("F1", font_f1.into()), ("F2", font_f2.into())]).into(),
         )]));
 
-        let mut text = String::new();
+        let mut content = String::from("BT 50 780 Td /F1 11 Tf 14 TL\n");
+
         for block in &doc.blocks {
-            text.push_str(&block_to_text(block));
-            text.push_str("\n\n");
+            match block {
+                Block::Heading { level, inlines } => {
+                    let text = inlines_to_text(inlines);
+                    let (font_size, leading) = match level {
+                        1 => (18, 22),
+                        2 => (15, 18),
+                        _ => (13, 16),
+                    };
+                    content.push_str(&format!("/F2 {} Tf {} TL\n", font_size, leading));
+                    for line in text.lines() {
+                        let escaped = escape_pdf_str(line);
+                        content.push_str(&format!("({}) Tj T*\n", escaped));
+                    }
+                    content.push_str("/F1 11 Tf 14 TL T*\n");
+                }
+                Block::Paragraph { inlines } => {
+                    let text = inlines_to_text(inlines);
+                    for line in text.lines() {
+                        let escaped = escape_pdf_str(line);
+                        content.push_str(&format!("({}) Tj T*\n", escaped));
+                    }
+                    content.push_str("T*\n");
+                }
+                Block::CodeBlock { text, .. } => {
+                    for line in text.lines() {
+                        let escaped = escape_pdf_str(line);
+                        content.push_str(&format!("({}) Tj T*\n", escaped));
+                    }
+                    content.push_str("T*\n");
+                }
+                Block::List { .. } => {
+                    let text = block_to_text(block);
+                    for line in text.lines() {
+                        let escaped = escape_pdf_str(line);
+                        content.push_str(&format!("({}) Tj T*\n", escaped));
+                    }
+                    content.push_str("T*\n");
+                }
+                Block::Table { header, rows, .. } => {
+                    if !header.is_empty() {
+                        let header_str = header
+                            .iter()
+                            .map(|cell| inlines_to_text(cell))
+                            .collect::<Vec<_>>()
+                            .join(" | ");
+                        let escaped = escape_pdf_str(&header_str);
+                        content.push_str(&format!("({}) Tj T*\n", escaped));
+                    }
+                    for row in rows {
+                        let row_str = row
+                            .iter()
+                            .map(|cell| inlines_to_text(cell))
+                            .collect::<Vec<_>>()
+                            .join(" | ");
+                        let escaped = escape_pdf_str(&row_str);
+                        content.push_str(&format!("({}) Tj T*\n", escaped));
+                    }
+                    content.push_str("T*\n");
+                }
+                Block::Blockquote { blocks } => {
+                    for b in blocks {
+                        let text = block_to_text(b);
+                        for line in text.lines() {
+                            let escaped = escape_pdf_str(&format!("> {}", line));
+                            content.push_str(&format!("({}) Tj T*\n", escaped));
+                        }
+                    }
+                    content.push_str("T*\n");
+                }
+                Block::Rule => {
+                    content.push_str(&format!(
+                        "({}) Tj T*\n",
+                        escape_pdf_str("----------------------------------------")
+                    ));
+                }
+                Block::Image { alt, .. } => {
+                    if !alt.is_empty() {
+                        let escaped = escape_pdf_str(&format!("[Image: {}]", alt));
+                        content.push_str(&format!("({}) Tj T*\n", escaped));
+                        content.push_str("T*\n");
+                    }
+                }
+            }
         }
-        let escaped = text
-            .replace('\\', "\\\\")
-            .replace('(', "\\(")
-            .replace(')', "\\)");
-        let content_str = format!("BT /F1 12 Tf 50 750 Td ({}) Tj ET", escaped);
-        let content_id =
-            doc_pdf.add_object(Stream::new(Dictionary::new(), content_str.into_bytes()));
+        content.push_str("ET\n");
+
+        let content_id = doc_pdf.add_object(Stream::new(Dictionary::new(), content.into_bytes()));
 
         let page_id = doc_pdf.add_object(Dictionary::from_iter(vec![
             ("Type", "Page".into()),
@@ -240,25 +323,78 @@ impl Writer for PdfWriter {
     }
 }
 
+fn escape_pdf_str(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '(' => out.push_str("\\("),
+            ')' => out.push_str("\\)"),
+            '\r' | '\n' => out.push(' '),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
 fn block_to_text(block: &Block) -> String {
     match block {
         Block::Heading { inlines, .. } => inlines_to_text(inlines),
         Block::Paragraph { inlines } => inlines_to_text(inlines),
-        Block::List { items, .. } => items
-            .iter()
-            .map(|item_blocks| {
-                item_blocks
-                    .iter()
-                    .map(block_to_text)
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            })
-            .collect::<Vec<_>>()
-            .join("\n"),
+        Block::List {
+            items,
+            ordered,
+            start,
+        } => {
+            let mut idx = *start;
+            let mut lines = Vec::new();
+            for item in items {
+                let bullet = if *ordered {
+                    let b = format!("{}. ", idx);
+                    idx += 1;
+                    b
+                } else {
+                    "- ".to_string()
+                };
+                for (i, b) in item.iter().enumerate() {
+                    let t = block_to_text(b);
+                    for (j, line) in t.lines().enumerate() {
+                        let prefix = if i == 0 && j == 0 { &bullet } else { "  " };
+                        lines.push(format!("{}{}", prefix, line));
+                    }
+                }
+            }
+            lines.join("\n")
+        }
         Block::CodeBlock { text, .. } => text.clone(),
-        Block::Table { .. } => String::new(),
-        Block::Image { alt, .. } => alt.clone(),
-        Block::Rule => "---".to_string(),
+        Block::Table { header, rows, .. } => {
+            let mut tbl = Vec::new();
+            if !header.is_empty() {
+                let header_str = header
+                    .iter()
+                    .map(|cell| inlines_to_text(cell))
+                    .collect::<Vec<_>>()
+                    .join(" | ");
+                tbl.push(header_str);
+            }
+            for row in rows {
+                let row_str = row
+                    .iter()
+                    .map(|cell| inlines_to_text(cell))
+                    .collect::<Vec<_>>()
+                    .join(" | ");
+                tbl.push(row_str);
+            }
+            tbl.join("\n")
+        }
+        Block::Image { alt, .. } => {
+            if alt.is_empty() {
+                String::new()
+            } else {
+                format!("[Image: {}]", alt)
+            }
+        }
+        Block::Rule => "----------------------------------------".to_string(),
         Block::Blockquote { blocks } => blocks
             .iter()
             .map(block_to_text)
@@ -280,4 +416,65 @@ fn inlines_to_text(inlines: &[Inline]) -> String {
         }
     }
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::idm::{Align, Metadata};
+
+    #[test]
+    fn pdf_writer_and_reader_roundtrip_blocks() {
+        let doc = Document {
+            meta: Metadata {
+                title: Some("PDF Test".to_string()),
+                author: None,
+            },
+            blocks: vec![
+                Block::Heading {
+                    level: 1,
+                    inlines: vec![Inline::Text("Main Heading".to_string())],
+                },
+                Block::Paragraph {
+                    inlines: vec![Inline::Text("A simple paragraph.".to_string())],
+                },
+                Block::Table {
+                    align: vec![Align::Left, Align::Left],
+                    header: vec![
+                        vec![Inline::Text("Header 1".to_string())],
+                        vec![Inline::Text("Header 2".to_string())],
+                    ],
+                    rows: vec![vec![
+                        vec![Inline::Text("Val 1".to_string())],
+                        vec![Inline::Text("Val 2".to_string())],
+                    ]],
+                },
+            ],
+        };
+
+        let writer = PdfWriter;
+        let bytes = writer.write(&doc, Format::Pdf).expect("write pdf");
+        assert!(bytes.starts_with(b"%PDF-"));
+
+        let reader = PdfReader;
+        let parsed = reader.read(&bytes, Format::Pdf).expect("read pdf");
+        let all_text = parsed
+            .blocks
+            .iter()
+            .map(block_to_text)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            all_text.contains("Main Heading"),
+            "contains heading: {all_text}"
+        );
+        assert!(
+            all_text.contains("A simple paragraph"),
+            "contains paragraph: {all_text}"
+        );
+        assert!(
+            all_text.contains("Header 1"),
+            "contains table cell: {all_text}"
+        );
+    }
 }

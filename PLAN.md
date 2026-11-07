@@ -76,15 +76,16 @@ Native Rust conversion for text formats, detection, CLI core.
 
 ### M1 -- office formats via warm LibreOffice pool and native pure-Rust converters
 
-Status: Complete. Native DOCX, RTF, CSV, TSV, and EPUB readers and writers are
+Status: Complete. Native DOCX, ODT, RTF, CSV, TSV, and EPUB readers and writers are
 implemented directly in `smelt-core` with zero external dependencies. External
-LibreOffice pool handles remaining office formats (ODT, ODS, ODP, XLSX, PPTX).
+LibreOffice pool handles remaining office formats (ODS, ODP, XLSX, PPTX) and provides
+fallback conversion.
 Recursive batch traversal (`-r`/`--recursive`) and content-hash caching (`Cache`)
 are fully wired.
 
 - Persistent headless LibreOffice pool (request queue, health checks, idle
   shutdown); `smelt doctor` validates pool preconditions.
-- docx/rtf/csv/tsv/epub readers and writers natively in pure Rust; odt/pptx/xlsx
+- docx/odt/rtf/csv/tsv/epub readers and writers natively in pure Rust; pptx/xlsx/ods/odp
   via soffice pool fallback.
 - Content-hash conversion cache keyed by (input hash, direction, engine
   version).

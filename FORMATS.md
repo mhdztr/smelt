@@ -14,7 +14,7 @@ tool invocation).
 | CSV / TSV | yes | yes | native | M1 | first record is the header; each file becomes one strict IDM table; RFC-4180-style quoting |
 | EPUB | yes | yes | native (core, `zip`) | M1 | zip + XHTML spine; reuses the HTML converter. Not in wasm subset |
 | DOCX | yes | yes | native (core, `zip`) / LibreOffice | M1 | native pure-Rust reader and writer; LibreOffice pool fallback |
-| ODT | yes | yes | LibreOffice (optional) | M1 | via soffice integration/pool path where available |
+| ODT | yes | yes | native (core, `zip`) / LibreOffice | M1 | native pure-Rust reader and writer; LibreOffice pool fallback |
 | ODS | yes | yes | LibreOffice (optional) | M1 | OpenDocument spreadsheet; detected in M0, converted via soffice |
 | ODP | yes | yes | LibreOffice (optional) | M1 | OpenDocument presentation; detected in M0, converted via soffice |
 | PPTX | yes | yes | LibreOffice (optional) | M1 | slide-per-block; layout is lossy |

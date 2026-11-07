@@ -44,6 +44,8 @@ pub fn reader_for(fmt: Format) -> Option<&'static dyn Reader> {
         Format::Rtf => Some(&formats::rtf::RtfReader),
         #[cfg(feature = "docx")]
         Format::Docx => Some(&formats::docx::DocxReader),
+        #[cfg(feature = "odt")]
+        Format::Odt => Some(&formats::odt::OdtReader),
         #[cfg(feature = "epub")]
         Format::Epub => Some(&formats::epub::EpubReader),
         #[cfg(feature = "pdf")]
@@ -66,6 +68,8 @@ pub fn writer_for(fmt: Format) -> Option<&'static dyn Writer> {
         Format::Rtf => Some(&formats::rtf::RtfWriter),
         #[cfg(feature = "docx")]
         Format::Docx => Some(&formats::docx::DocxWriter),
+        #[cfg(feature = "odt")]
+        Format::Odt => Some(&formats::odt::OdtWriter),
         #[cfg(feature = "epub")]
         Format::Epub => Some(&formats::epub::EpubWriter),
         #[cfg(feature = "pdf")]
@@ -126,9 +130,15 @@ mod tests {
             assert!(reader_for(Format::Docx).is_some());
             assert!(writer_for(Format::Docx).is_some());
         }
+        #[cfg(feature = "odt")]
+        {
+            assert!(reader_for(Format::Odt).is_some());
+            assert!(writer_for(Format::Odt).is_some());
+        }
         for fmt in [
             #[cfg(not(feature = "docx"))]
             Format::Docx,
+            #[cfg(not(feature = "odt"))]
             Format::Odt,
             Format::Ods,
             Format::Odp,
@@ -157,7 +167,7 @@ mod tests {
     /// CLI keeps exit code 3, never `ReadError::Parse` (exit 1).
     #[test]
     fn read_document_reports_unsupported_without_a_reader() {
-        let err = read_document(Format::Odt, b"not an odt").expect_err("unsupported");
+        let err = read_document(Format::Ods, b"not an ods").expect_err("unsupported");
         assert!(err.is_unsupported());
     }
 }
