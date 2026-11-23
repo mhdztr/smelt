@@ -1,6 +1,24 @@
 # smelt
 
+[![CI](https://github.com/mhdztr/smelt/actions/workflows/ci.yml/badge.svg)](https://github.com/mhdztr/smelt/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/github/license/mhdztr/smelt)](LICENSE)
+![Rust 2024 edition](https://img.shields.io/badge/rust-2024%20edition-orange?logo=rust&logoColor=white)
+![Version: 2.0.0](https://img.shields.io/badge/version-2.0.0-blue)
+
 **Melt any document into any other.**
+
+## Contents
+
+- [Highlights](#highlights)
+- [Install](#install)
+- [Release artifacts](#release-artifacts)
+- [Browser demo (static, client-side)](#browser-demo-static-client-side)
+- [Quickstart](#quickstart)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Highlights
 
 `smelt` is an advanced document converter CLI: a fast, single-binary
 alternative to pandoc invocations and LibreOffice-per-file wrappers. It reads
@@ -124,6 +142,11 @@ printf 'Two\n\nsome text\n' > docs-in/two.md
 | [.agent/workflows/](.agent/workflows/) | Design and audit workflows: audit, polish, simplify, harden |
 | [docs/cli.md](docs/cli.md) | Full command reference and exit codes |
 | [docs/idm-spec.md](docs/idm-spec.md) | Intermediate Document Model spec |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow, verification commands, commit style |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). In short: read `AGENTS.md` and the relevant skills in `.agent/skills/` first, keep changes minimal per the Ponytail methodology, sync `FORMATS.md` / `docs/cli.md` / `DESIGN.md` when behavior changes, and run `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace` before proposing a change.
 
 ## License
 
